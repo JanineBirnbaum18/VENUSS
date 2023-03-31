@@ -610,27 +610,27 @@ if ins.solidification:
 
 if ins.temp:
     time_int = "(BDF0*t+BDF1*Previous_t+BDF2*Previous2_t)/dt"
-    advection = "(Previous_u.Grad_t)*Test_t"
+    advection = "(u.Grad_t)*Test_t"
     diffusion = "kappa*(Grad_t.Grad_Test_t)"
-    S_SUPG_t = "(Previous_u.Grad_t)*(Previous_u.Grad_Test_t) + kappa*(Grad_t).Grad(Previous_u.Grad_Test_t)"
-    S_GLS_t = "(kappa*(Grad(Previous_u.Grad_t).Grad_Test_t))"
-    md.add_macro('Pe', "h*Norm(Previous_u)/(2*kappa)")
+    S_SUPG_t = "(u.Grad_t)*(u.Grad_Test_t) + kappa*(Grad_t).Grad(u.Grad_Test_t)"
+    S_GLS_t = "(kappa*(Grad(u.Grad_t).Grad_Test_t))"
+    md.add_macro('Pe', "h*Norm(u)/(2*kappa)")
     md.add_macro('xi', "min(Pe/3,1)")
 
     md.add_nonlinear_term(mim, time_int + '*Test_t')
     md.add_nonlinear_term(mim, advection)
     md.add_nonlinear_term(mim, diffusion)
 
-    tau_SUPG_t = '1/(2/dt + 4*kappa/(h*h) + 2*Norm(Previous_u)/h)*xi'
-    tau_GLS_t = '1/(2/dt + 4*kappa/(h*h) + 2*Norm(Previous_u)/h)*xi'
+    tau_SUPG_t = '1/(2/dt + 4*kappa/(h*h) + 2*Norm(u)/h)*xi'
+    tau_GLS_t = '1/(2/dt + 4*kappa/(h*h) + 2*Norm(u)/h)*xi'
     if 'SUPG' in ins.stab_t:
         # tau_supg = 'h/(2*Norm(u))*(cosh(Norm(u)*h/(2*kappa))/sinh(Norm(u)*h/(2*kappa)) - 2*kappa/(h*Norm(u)))'
         # tau_SUPG_t = 'h*h/(4*kappa)*min(1/3,1/Pe)'
-        md.add_nonlinear_term(mim, tau_SUPG_t + '*(Previous_u.Grad_Test_t)*' + time_int)
+        md.add_nonlinear_term(mim, tau_SUPG_t + '*(u.Grad_Test_t)*' + time_int)
         md.add_nonlinear_term(mim, tau_SUPG_t + '*' + S_SUPG_t)
 
     elif 'GLS' in ins.stab_t:
-        md.add_nonlinear_term(mim, tau_GLS_t + '*(Previous_u.Grad_Test_t)*' + time_int)
+        md.add_nonlinear_term(mim, tau_GLS_t + '*(u.Grad_Test_t)*' + time_int)
         md.add_nonlinear_term(mim, tau_GLS_t + '*' + S_SUPG_t)
         md.add_nonlinear_term(mim, tau_GLS_t + '*' + S_GLS_t)
 
