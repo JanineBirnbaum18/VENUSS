@@ -11,7 +11,7 @@ import skfmm
 import getfem as gf
 from getfem import *
 
-outfile = 'test'
+outfile = './Results/cooled_def'
 #outfile = sys.argv[1]
 
 # import simulation parameters
@@ -49,22 +49,22 @@ else:
 if ins.restart:
     try:
         hf = h5py.File(ins.outfile + '.h5', 'r')
-        last_u = hf.get('last_u')
-        last2_u = hf.get('last2_u')
-        last_p = hf.get('last_p')
-        last2_p = hf.get('last2_p')
-        last_d = hf.get('last_d')
-        last2_d = hf.get('last2_d')
+        U = hf.get('last_u')[:]
+        Previous_u = hf.get('last2_u')[:]
+        P = hf.get('last_p')[:]
+        Previous_p = hf.get('last2_p')[:]
+        D = hf.get('last_d')[:]
+        Previous_d = hf.get('last2_d')[:]
         if ins.temp:
-            last_T = hf.get('last_T')
-            last2_T = hf.get('last2_T')
+            T = hf.get('last_T')[:]
+            Previous_T = hf.get('last2_T')[:]
         if ins.free_surface:
-            last_Ls1 = hf.get('last_Ls1')
+            last_Ls1 = hf.get('last_Ls1')[:]
         if ins.temp & ins.solidification:
-            last_Ls2 = hf.get('last_Ls2')
+            last_Ls2 = hf.get('last_Ls2')[:]
         if ins.topography:
-            last_Ls3 = hf.get('last_Ls3')
-        last_ti = hf.get('last_ti')
+            last_Ls3 = hf.get('last_Ls3')[:]
+        last_ti = hf.get('last_ti')[:]
         hf.close()
     except Exception as e:
         ins.restart = False
@@ -402,17 +402,21 @@ if ins.free_surface | ins.topography:
         mft_cut.set_partial(eval(ind_t))
 
 if ins.restart:
-    md.add_initialized_fem_data('Previous_u', mfu, last_u)
-    md.add_initialized_fem_data('Previous2_u', mfu, last2_u)
-    md.add_initialized_fem_data('Previous_p', mfp, last_p)
-    md.add_initialized_fem_data('Previous2_p', mfp, last2_p)
-    md.add_initialized_fem_data('Previous_d', mfu, last_d)
-    md.add_initialized_fem_data('Previous2_d', mfu, last2_d)
+    md.add_initialized_fem_data('Previous_u', mfu, U)
+    md.add_initialized_fem_data('Previous2_u', mfu, Previous_u)
+    md.add_initialized_fem_data('Previous_p', mfp, P)
+    md.add_initialized_fem_data('Previous2_p', mfp, Previous_p)
+    md.add_initialized_fem_data('Previous_d', mfu, D)
+    md.add_initialized_fem_data('Previous2_d', mfu, Previous_d)
 else:
     u_init = ones_u * 0
+    p_init = ones_p * ins.p_atm
     d_init = ones_u * 0
     md.add_initialized_fem_data('Previous_u', mfu, u_init)
     md.add_initialized_fem_data('Previous2_u', mfu, u_init)
+    md.add_initialized_fem_data('p_init', mfp, p_init)
+    md.add_initialized_fem_data('Previous_p', mfp, p_init)
+    md.add_initialized_fem_data('Previous2_p', mfp, p_init)
     md.add_initialized_fem_data('Previous_d', mfu, d_init)
     md.add_initialized_fem_data('Previous2_d', mfu, d_init)
 
@@ -435,11 +439,6 @@ if ins.topography:
     rho[ls3_p < 0] = ins.beta3
 md.add_initialized_fem_data('beta', mfp, beta)
 
-p_init = ones_p * ins.p_atm
-md.add_initialized_fem_data('p_init', mfp, [p_init])
-md.add_initialized_fem_data('Previous_p', mfp, p_init)
-md.add_initialized_fem_data('Previous2_p', mfp, p_init)
-
 if ins.temp:
     # Thermal diffusivity
     kappa = ones_t * ins.kappa1
@@ -458,15 +457,15 @@ if ins.temp:
 
     # Initial temp
     if ins.restart:
-        md.add_initialized_fem_data('Previous_t', mft, last_T)
-        md.add_initialized_fem_data('Previous2_t', mft, last2_T)
-        T_init = last_T
+        md.add_initialized_fem_data('Previous_t', mft, T)
+        md.add_initialized_fem_data('Previous2_t', mft, Previous_T)
+        T_init = Previous_T
 
     else:
         if (type(ins.T_init) is float) or (type(ins.T_init) is int):
             T_init = mft.eval('1') * ins.T_init
         elif type(ins.T_init) is str:
-            T_init = mft.eval(ins.T_init)
+            T_init = eval(ins.T_init)
         elif type(ins.T_init) is type(None):
              T_init = mft.eval('1') * ins.T0
 
@@ -566,7 +565,7 @@ md_init.add_fem_variable('p', mfp)
 
 md_init.add_linear_incompressibility_brick(mim_all, 'u', 'p')
 md_init.add_isotropic_linearized_elasticity_brick(mim_all, 'u', 'lambda', 'mu')
-#md_init.add_source_term_brick(mim_all, 'u', '-Grad_p')
+#md_init.add_source_term_brick(mim_all, 'u', 'Grad_p')
 
 md.add_macro('h', 'element_size')
 
@@ -595,16 +594,16 @@ else:
     time_int_u = "-rho*((BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u)"
 linear_elastic = "lambda*(Div_u*Div_Test_u) + mu*((Grad_u + Grad_u'):Grad_Test_u)"
 residual_stress1 = "(lambda*(Div_Previous_d*Div_Test_u) + mu*((Grad_Previous_d + Grad_Previous_u'):Grad_Test_u))*BDF1/BDF0*solid"
-residual_stress2 = "(lambda*(Div_Previous2_d*Div_Test_u) + mu*((Grad_Previous2_d + Grad_Previous2_d'):Grad_Test_u))*BDF2/BDF0*solid"
+residual_stress2 = "(lambda*(Div_Previous2_d*Div_Test_u) + mu*((Grad_Previous2_d + Grad_Previous2_d'):Grad_Test_u))*BDF2/BDF0*solid"\
 
 if ins.steady:
     if ins.solidification:
         md.add_nonlinear_term(mim, 'solid*' + time_int_u)
 else:
     md.add_nonlinear_term(mim, time_int_u)
-#md.add_source_term_brick(mim, 'u', "-(Grad_p)")
+md.add_nonlinear_term(mim, "-(Grad_Previous_p).Test_u")
 md.add_nonlinear_term(mim, linear_elastic)
-# md.add_isotropic_linearized_elasticity_brick(mim, 'u', 'lambda','mu')
+
 if ins.solidification:
     md.add_nonlinear_term(mim, residual_stress1 + '+' + residual_stress2)
 
@@ -683,7 +682,6 @@ for i, bound in enumerate(bounds):
     if type(eval('ins.' + bound + '_ux')) is type(None):
         data_ux = 0 * ones_p
 
-    print(bound)
     if dirichlet:
         md.add_initialized_fem_data(bound + 'data', mfp, [data_ux, data_uy])
         md_init.add_initialized_fem_data(bound + 'data', mfp, [data_ux, data_uy])
@@ -885,10 +883,6 @@ if not ins.restart:
         if ins.solidification:
             ls2.set_values((T_ls - Tg) / Tg)
 
-    ind_sol = mfu.basic_dof_from_cv(mim_integ.convex_index())
-    D_sol = np.zeros([int(ins.tf / ins.dt), ind_sol.shape[0]])
-    D_sol[0, :] = D[ind_sol]
-
     if ins.vtk:
         u = md.variable('u')
         P = md.variable('p')
@@ -1028,13 +1022,13 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
             lam[(ls1_p <= 0) & (ls2_p > 0)] = lam_solid * ins.dt / BDF0
             mu[(ls1_p <= 0) & (ls2_p > 0)] = mu_solid * ins.dt / BDF0
             solid[(ls1_p <= 0) & (ls2_p > 0)] = 1
-
         else:
-               lam[(T_p < Tg)] = lam_solid * ins.dt
-               mu[(T_p < Tg)] = mu_solid * ins.dtmd.set_variable('solid', solid)
-               solid[(T_p < Tg)] = 1
+            lam[(T_p < Tg)] = lam_solid * ins.dt
+            mu[(T_p < Tg)] = mu_solid * ins.dt
+            solid[(T_p < Tg)] = 1
 
-        md.set_variable('solid',solid)
+        md.set_variable('solid', solid)
+
     md.set_variable('lambda', lam)
     md.set_variable('mu', mu)
 
@@ -1076,7 +1070,7 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
                 md.set_variable('basal_flux', [ins.kappa1 * (T - ins.basal_temp_i) / radii_t * ones_t])
 
     # Solve
-    md.solve('max_res', 1E-6, 'max_iter', 100, 'noisy')
+    md.solve('max_res', 1E-10, 'max_iter', 100, 'noisy')
 
     if ins.free_surface:
         # construct extension velocities
@@ -1124,7 +1118,6 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
     solid_u = sciinterp.griddata(D_p.transpose(), solid, D_u.transpose(), method='nearest')
     D[eval(ind_u)] = - BDF2 / BDF0 * Previous_d[eval(ind_u)] - BDF1 / BDF0 * Previous2_d[
         eval(ind_u)] + ins.dt / BDF0 * md.variable('u') * solid_u
-    D_sol[i + 1, :] = D[ind_sol]
 
     if ins.temp:
         Previous_T = T
