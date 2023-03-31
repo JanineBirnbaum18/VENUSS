@@ -889,6 +889,19 @@ if not ins.restart:
     D_sol = np.zeros([int(ins.tf / ins.dt), ind_sol.shape[0]])
     D_sol[0, :] = D[ind_sol]
 
+    if ins.vtk:
+        u = md.variable('u')
+        P = md.variable('p')
+
+        mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + '0'*ndigits + '.vtk', u)
+        mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + '0'*ndigits + '.vtk', P)
+        if ins.temp:
+            T = md.variable('t')
+            mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_T_' + '0'*ndigits + '.vtk', T)
+            mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + '0'*ndigits + '.vtk', mu)
+            if ins.solidification:
+                mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + '0'*ndigits + '.vtk', D)
+
     print('time = 0')
 
 # update BDF coefficients
@@ -1123,14 +1136,14 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
             u = md.variable('u')
             P = md.variable('p')
 
-            mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_' + numstr + '_u.vtk', u)
-            mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_' + numstr + '_P.vtk', P)
+            mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + numstr + '.vtk', u)
+            mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + numstr + '.vtk', P)
             if ins.temp:
                 T = md.variable('t')
-                mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_' + numstr + '_T.vtk', T)
-                mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_' + numstr + '_mu.vtk', mu)
+                mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_T_' + numstr + '.vtk', T)
+                mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + numstr + '.vtk', mu)
                 if ins.solidification:
-                    mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_' + numstr + '_d.vtk', D)
+                    mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + numstr + '.vtk', D)
 
         hf = h5py.File(ins.outfile + '.h5','a')
         hf['last_u'][:] = U
