@@ -1029,8 +1029,12 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
             mu[(ls1_p <= 0) & (ls2_p > 0)] = mu_solid * ins.dt / BDF0
             solid[(ls1_p <= 0) & (ls2_p > 0)] = 1
 
-        md.set_variable('solid', solid)
+        else:
+               lam[(T_p < Tg)] = lam_solid * ins.dt
+               mu[(T_p < Tg)] = mu_solid * ins.dtmd.set_variable('solid', solid)
+               solid[(T_p < Tg)] = 1
 
+        md.set_variable('solid',solid)
     md.set_variable('lambda', lam)
     md.set_variable('mu', mu)
 
