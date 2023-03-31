@@ -1,4 +1,3 @@
-import copy
 import sys
 import os
 import json
@@ -12,7 +11,8 @@ import skfmm
 import getfem as gf
 from getfem import *
 
-outfile = 'cooling_solidification_moving'
+outfile = 'test'
+#outfile = sys.argv[1]
 
 # import simulation parameters
 with open(outfile + '.json', 'r') as openfile:
@@ -24,12 +24,12 @@ dx = ins.L_x/ins.nx
 dy = ins.L_y/ins.ny
 xs = np.arange(2*ins.nx)*dx/2+dx/4
 ys = np.arange(2*ins.ny)*dy/2+dy/4
-x_grid, y_grid = np.meshgrid(xs,ys)
+x_grid, y_grid = np.meshgrid(xs, ys)
 
 if (type(ins.Tg) is float) or (type(ins.Tg) is int):
     Tg = ins.Tg
 elif type(ins.Tg) is type(str):
-    Tg = eval(ins.Tg.replace('vft','ins.vft'))
+    Tg = eval(ins.Tg.replace('vft', 'ins.vft'))
 elif type(ins.Tg) is type(None):
     Tg = ins.vftc + ins.vftb/(12-ins.vfta) - 273
 
@@ -38,16 +38,17 @@ try:
 except Exception as e:
     os.mkdir('./' + ins.outfile)
 
-ndigits = int(floor(log10(ins.tf/ins.dt))) + len(str(ins.dt).split('.')[-1].lstrip('0')) + len(str(ins.dt).split('.')[0].rstrip('0'))
+ndigits = int(np.floor(np.log10(ins.tf/ins.dt))) + len(str(ins.dt).split('.')[-1].lstrip('0')
+                                                       ) + len(str(ins.dt).split('.')[0].rstrip('0'))
 if '.' in str(ins.dt)[:ndigits+1]:
-    ndigits+=1
+    ndigits += 1
     ndecimal = len(str(ins.dt)[:ndigits+1].split('.')[-1].rstrip('0'))
 else:
     ndecimal = 0
 
 if ins.restart:
     try:
-        hf = h5py.File(ins.outfile + '.h5','r')
+        hf = h5py.File(ins.outfile + '.h5', 'r')
         last_u = hf.get('last_u')
         last2_u = hf.get('last2_u')
         last_p = hf.get('last_p')
@@ -85,6 +86,7 @@ else:
 # outward vector in [x,y], tolerance angle theta (rad)
 
 if ins.ndim == 2:
+    # noinspection PyUnboundLocalVariable
     fb_left = mesh.outer_faces_with_direction([-1., 0.], 0.01)  # boundary 1
     fb_right = mesh.outer_faces_with_direction([1., 0.], 0.01)  # boundary 2
     fb_top = mesh.outer_faces_with_direction([0., 1.], 0.01)  # boundary 3
@@ -108,7 +110,7 @@ if ins.influx:
 
 if ins.vtk:
     # export to vtk for visualization through python
-    mesh.export_to_vtk(ins.outfile + '/' + ins.outfile + '_mesh.vtk')
+    mesh.export_to_vtk(ins.outfile + '/' + ins.outfile.split('/')[-1] + '_mesh.vtk')
 
 # Levelset definition:
 # free surface
@@ -204,7 +206,7 @@ if ins.plots:
     ax.set_ylabel('y (m)', fontsize=14)
     ax.set_title('Mesh', fontsize=16)
     plt.legend(bbox_to_anchor=(1.02, 1))
-    fig.savefig(ins.outfile + '/' + ins.outfile + '_mesh.pdf')
+    fig.savefig(ins.outfile + '/' + ins.outfile.split('/')[-1] + '_mesh.pdf')
 
 # mim = gf.MeshIm(mesh, 4)
 # integration methods on cut domain
@@ -235,9 +237,9 @@ if ins.free_surface | (ins.temp & ins.solidification) | ins.topography:
 
     mim_integ = gf.MeshIm('levelset', mls, 'boundary(a-c)', gf.Integ('IM_STRUCTURED_COMPOSITE(IM_TRIANGLE(6),3)'))
 else:
-    mim_all = gf.MeshIm(mesh)
-    mim = gf.MeshIm(mesh)
-    mim_integ = gf.MeshIm(mesh)
+    mim_all = gf.MeshIm(mesh,4)
+    mim = gf.MeshIm(mesh,4)
+    mim_integ = gf.MeshIm(mesh,4)
 
 if ins.plots:
     fig2, ax2 = plt.subplots()
@@ -329,7 +331,7 @@ if ins.free_surface:
     if ins.ndim == 2:
         Ls1[edges_ls] = max(ins.L_x, ins.L_y)
     elif ins.ndim == 3:
-        Ls1[edges_ls] = max(max(ins.L_x, ins.L_y),ins.L_z)
+        Ls1[edges_ls] = max(max(ins.L_x, ins.L_y), ins.L_z)
     Ls_ext = sciinterp.griddata(D_ls.transpose(), Ls1,
                                 np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='nearest')
     Ls1 = skfmm.distance(Ls_ext.reshape((2 * ins.ny, 2 * ins.nx)), dx=[dy / 2, dx / 2]).flatten()
@@ -465,7 +467,7 @@ if ins.temp:
             T_init = mft.eval('1') * ins.T_init
         elif type(ins.T_init) is str:
             T_init = mft.eval(ins.T_init)
-        elif (type(ins.T_init) is type(None)):
+        elif type(ins.T_init) is type(None):
              T_init = mft.eval('1') * ins.T0
 
         if ins.free_surface:
@@ -495,7 +497,7 @@ if ins.temp:
     if ins.topography:
         eta[ls3_p < 0] = ins.eta3
 else:
-    eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0))) * ones_p
+    eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0)).replace('vft','ins.vft')) * ones_p
     if ins.free_surface:
         eta[ls1_p > 0] = ins.eta2
     if ins.topography:
@@ -528,7 +530,7 @@ md.add_initialized_fem_data('lambda', mfp, lam)
 md.add_initialized_fem_data('mu', mfp, mu)
 md.add_initialized_fem_data('solid', mfp, solid)
 
-md_init.add_initialized_fem_data('lambda', mfp, 0 * lam)
+md_init.add_initialized_fem_data('lambda', mfp, lam)
 md_init.add_initialized_fem_data('mu', mfp, mu)
 
 if ins.free_surface | (ins.temp & ins.solidification) | ins.topography:
@@ -542,7 +544,8 @@ if ins.free_surface | (ins.temp & ins.solidification) | ins.topography:
 
 else:
     radii = np.mean(mesh.convex_radius()) * ones_p
-    radii_t = np.mean(mesh.convex_radius()) * ones_t
+    if ins.temp:
+        radii_t = np.mean(mesh.convex_radius()) * ones_t
 
 # Add governing equations
 # Add variables
@@ -563,7 +566,7 @@ md_init.add_fem_variable('p', mfp)
 
 md_init.add_linear_incompressibility_brick(mim_all, 'u', 'p')
 md_init.add_isotropic_linearized_elasticity_brick(mim_all, 'u', 'lambda', 'mu')
-md_init.add_source_term_brick(mim_all, 'u', '-Grad_p')
+#md_init.add_source_term_brick(mim_all, 'u', '-Grad_p')
 
 md.add_macro('h', 'element_size')
 
@@ -587,45 +590,47 @@ else:
 
 # mometum balance
 if ins.compressible:
-    time_int_u = "((BDF0*rho*u+BDF1*Previous_rho*Previous_u+BDF2*Previous2_rho*Previous2_u)/dt.Test_u)"
+    time_int_u = "-((BDF0*rho*u+BDF1*Previous_rho*Previous_u+BDF2*Previous2_rho*Previous2_u)/dt.Test_u)"
 else:
-    time_int_u = "rho*((BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u)"
-linear_elastic = "-lambda*(Div_u*Div_Test_u) - mu*((Grad_u + Grad_u'):Grad_Test_u)"
-residual_stress1 = "(-lambda*(Div_Previous_d*Div_Test_u) - mu*((Grad_Previous_d + Grad_Previous_u'):Grad_Test_u))*BDF1/BDF0*solid"
-residual_stress2 = "(-lambda*(Div_Previous2_d*Div_Test_u) - mu*((Grad_Previous2_d + Grad_Previous2_d'):Grad_Test_u))*BDF2/BDF0*solid"
+    time_int_u = "-rho*((BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u)"
+linear_elastic = "lambda*(Div_u*Div_Test_u) + mu*((Grad_u + Grad_u'):Grad_Test_u)"
+residual_stress1 = "(lambda*(Div_Previous_d*Div_Test_u) + mu*((Grad_Previous_d + Grad_Previous_u'):Grad_Test_u))*BDF1/BDF0*solid"
+residual_stress2 = "(lambda*(Div_Previous2_d*Div_Test_u) + mu*((Grad_Previous2_d + Grad_Previous2_d'):Grad_Test_u))*BDF2/BDF0*solid"
 
 if ins.steady:
-    md.add_nonlinear_term(mim, 'solid*' + time_int_u)
+    if ins.solidification:
+        md.add_nonlinear_term(mim, 'solid*' + time_int_u)
 else:
     md.add_nonlinear_term(mim, time_int_u)
-md.add_source_term_brick(mim, 'u', "-(Grad_p)")
+#md.add_source_term_brick(mim, 'u', "-(Grad_p)")
 md.add_nonlinear_term(mim, linear_elastic)
 # md.add_isotropic_linearized_elasticity_brick(mim, 'u', 'lambda','mu')
-md.add_nonlinear_term(mim, residual_stress1 + '+' + residual_stress2)
+if ins.solidification:
+    md.add_nonlinear_term(mim, residual_stress1 + '+' + residual_stress2)
 
 if ins.temp:
     time_int = "(BDF0*t+BDF1*Previous_t+BDF2*Previous2_t)/dt"
-    advection = "(u.Grad_t)*Test_t"
+    advection = "(Previous_u.Grad_t)*Test_t"
     diffusion = "kappa*(Grad_t.Grad_Test_t)"
-    S_SUPG_t = "(u.Grad_t)*(u.Grad_Test_t) + kappa*(Grad_t).Grad(u.Grad_Test_t)"
-    S_GLS_t = "(kappa*(Grad(u.Grad_t).Grad_Test_t))"
-    md.add_macro('Pe', "h*Norm(u)/(2*kappa)")
+    S_SUPG_t = "(Previous_u.Grad_t)*(Previous_u.Grad_Test_t) + kappa*(Grad_t).Grad(Previous_u.Grad_Test_t)"
+    S_GLS_t = "(kappa*(Grad(Previous_u.Grad_t).Grad_Test_t))"
+    md.add_macro('Pe', "h*Norm(Previous_u)/(2*kappa)")
     md.add_macro('xi', "min(Pe/3,1)")
 
     md.add_nonlinear_term(mim, time_int + '*Test_t')
     md.add_nonlinear_term(mim, advection)
     md.add_nonlinear_term(mim, diffusion)
 
-    tau_SUPG_t = '1/(2/dt + 4*kappa/(h*h) + 2*Norm(u)/h)*xi'
-    tau_GLS_t = '1/(2/dt + 4*kappa/(h*h) + 2*Norm(u)/h)*xi'
+    tau_SUPG_t = '1/(2/dt + 4*kappa/(h*h) + 2*Norm(Previous_u)/h)*xi'
+    tau_GLS_t = '1/(2/dt + 4*kappa/(h*h) + 2*Norm(Previous_u)/h)*xi'
     if 'SUPG' in ins.stab_t:
         # tau_supg = 'h/(2*Norm(u))*(cosh(Norm(u)*h/(2*kappa))/sinh(Norm(u)*h/(2*kappa)) - 2*kappa/(h*Norm(u)))'
         # tau_SUPG_t = 'h*h/(4*kappa)*min(1/3,1/Pe)'
-        md.add_nonlinear_term(mim, tau_SUPG_t + '*(u.Grad_Test_t)*' + time_int)
+        md.add_nonlinear_term(mim, tau_SUPG_t + '*(Previous_u.Grad_Test_t)*' + time_int)
         md.add_nonlinear_term(mim, tau_SUPG_t + '*' + S_SUPG_t)
 
     elif 'GLS' in ins.stab_t:
-        md.add_nonlinear_term(mim, tau_GLS_t + '*(u.Grad_Test_t)*' + time_int)
+        md.add_nonlinear_term(mim, tau_GLS_t + '*(Previous_u.Grad_Test_t)*' + time_int)
         md.add_nonlinear_term(mim, tau_GLS_t + '*' + S_SUPG_t)
         md.add_nonlinear_term(mim, tau_GLS_t + '*' + S_GLS_t)
 
@@ -651,18 +656,22 @@ else:
     md.add_initialized_fem_data('body', mfp, [f_xi, f_yi])
     md.add_source_term_brick(mim, 'u', 'body')
 
+    md_init.add_initialized_fem_data('body', mfp, [f_xi, f_yi])
+    md_init.add_source_term_brick(mim_all, 'u', 'body')
+
 # add boundary conditions
 for i, bound in enumerate(bounds):
 
     # Dirichlet boundaries
     dirichlet = False
+    print(type(eval('ins.' + bound + '_ux')))
     if (type(eval('ins.' + bound + '_ux')) is float) or (type(eval('ins.' + bound + '_ux')) is int):
         data_ux = eval('ins.' + bound + '_ux') * ones_p
         dirichlet = True
     if type(eval('ins.' + bound + '_ux')) is str:
         data_ux = eval(eval('ins.' + bound + '_ux'))
         dirichlet = True
-    if (type(eval('ins.' + bound + '_uy')) is type(None)):
+    if type(eval('ins.' + bound + '_uy')) is type(None):
         data_uy = 0 * ones_p
 
     if (type(eval('ins.' + bound + '_uy')) is float) or (type(eval('ins.' + bound + '_uy')) is int):
@@ -671,18 +680,19 @@ for i, bound in enumerate(bounds):
     if type(eval('ins.' + bound + '_uy')) is str:
         data_uy = eval(eval('ins.' + bound + '_uy'))
         dirichlet = True
-    if (type(eval('ins.' + bound + '_ux')) is type(None)):
+    if type(eval('ins.' + bound + '_ux')) is type(None):
         data_ux = 0 * ones_p
 
+    print(bound)
     if dirichlet:
         md.add_initialized_fem_data(bound + 'data', mfp, [data_ux, data_uy])
         md_init.add_initialized_fem_data(bound + 'data', mfp, [data_ux, data_uy])
 
-        md.add_Dirichlet_condition_with_multipliers(mim, 'u', 0, i + 1,
+        md.add_Dirichlet_condition_with_multipliers(mim, 'u', 2, i + 1,
                                                     dataname=bound + 'data')
         # md.add_Dirichlet_condition_with_simplification('u', i+1,
         #                                  dataname = bound+'data');
-        md_init.add_Dirichlet_condition_with_multipliers(mim_all, 'u', 0, i + 1,
+        md_init.add_Dirichlet_condition_with_multipliers(mim_all, 'u', 2, i + 1,
                                                          dataname=bound + 'data')
 
     else:
@@ -711,20 +721,20 @@ for i, bound in enumerate(bounds):
 md.add_initialized_fem_data('patm', mfp, [ins.p_atm * ones_p])
 md_init.add_initialized_fem_data('patm', mfp, ins.p_atm * ones_p)
 if ins.solve_air | (not ins.free_surface):
-    md.add_Dirichlet_condition_with_multipliers(mim, 'p', 0, 3, dataname='patm')
-    md_init.add_Dirichlet_condition_with_multipliers(mim_all, 'p', 0, 3, dataname='patm')
+    md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 3, dataname='patm')
+    md_init.add_Dirichlet_condition_with_multipliers(mim_all, 'p', 1, 3, dataname='patm')
 
 else:
-    md.add_Dirichlet_condition_with_multipliers(mim_surf, 'p', 0, -1, dataname='patm')
-    md_init.add_Dirichlet_condition_with_multipliers(mim_surf, 'p', 0, -1, dataname='patm')
+    md.add_Dirichlet_condition_with_multipliers(mim_surf, 'p', 1, -1, dataname='patm')
+    md_init.add_Dirichlet_condition_with_multipliers(mim_surf, 'p', 1, -1, dataname='patm')
 
 if ins.topography:
     if 'no_slip' in ins.basal_velocity:
         md.add_initialized_fem_data('no_slip', mfp, [0 * ones_p, 0 * ones_p])
-        md.add_Dirichlet_condition_with_multipliers(mim_base, 'u', 0, -1, dataname='no_slip')
+        md.add_Dirichlet_condition_with_multipliers(mim_base, 'u', 2, -1, dataname='no_slip')
 
         md_init.add_initialized_fem_data('no_slip', mfp, [0 * ones_p, 0 * ones_p])
-        md_init.add_Dirichlet_condition_with_multipliers(mim_base, 'u', 0, -1, dataname='no_slip')
+        md_init.add_Dirichlet_condition_with_multipliers(mim_base, 'u', 2, -1, dataname='no_slip')
 
     if 'no_normal' in ins.basal_velocity:
         md.add_initialized_fem_data('no_normal', mfp, [0 * ones_p, 0 * ones_p])
@@ -747,7 +757,7 @@ if ins.temp:
 
             if dirichlet:
                 md.add_initialized_fem_data(bound + 'data_t', mft, [data_t])
-                md.add_Dirichlet_condition_with_multipliers(mim, 't', 0, i + 1,
+                md.add_Dirichlet_condition_with_multipliers(mim, 't', 2, i + 1,
                                                             dataname=bound + 'data_t')
 
             # Neumann boundaries
@@ -763,7 +773,7 @@ if ins.temp:
     # fixed temperature
     elif (type(ins.surface_temp) is float) or (type(ins.surface_temp) is int):
         md.add_initialized_fem_data('surface_temp', mft, [ins.surface_temp * ones_t])
-        md.add_Dirichlet_condition_with_multipliers(mim_surf, 't', 0, -1, dataname='surface_temp')
+        md.add_Dirichlet_condition_with_multipliers(mim_surf, 't', 2, -1, dataname='surface_temp')
     # fixed temperature flux
     elif (type(ins.surface_flux) is float) or (type(ins.surface_flux) is int):
         md.add_initialized_fem_data('surface_flux', mft, [ins.surface_flux * ones_t])
@@ -783,7 +793,7 @@ if ins.temp:
         # add temperature or flux to flow base (default to temperature if provided)
         if (type(ins.basal_temp) is float) or (type(ins.basal_temp) is int):
             md.add_initialized_fem_data('basal_temp', mft, [ins.basal_temp * ones_t])
-            md.add_Dirichlet_condition_with_multipliers(mim_base, 't', 0, -1, dataname='basal_temp')
+            md.add_Dirichlet_condition_with_multipliers(mim_base, 't', 2, -1, dataname='basal_temp')
         elif (type(ins.basal_flux) is float) or (type(ins.basal_flux) is int):
             md.add_initialized_fem_data('basal_flux', mft, [ins.basal_flux * ones_t])
             md.add_source_term_brick(mim_base, 't', 'basal_flux/Previous_rho/cp', -1)
@@ -795,19 +805,18 @@ if ins.temp:
 # influx
 if ins.influx:
     md.add_initialized_fem_data('influxdata', mfp, [eval(ins.influx_ux) * ones_p, eval(ins.influx_uy) * ones_p])
-    md.add_Dirichlet_condition_with_multipliers(mim, 'u', 0, 5,
+    md.add_Dirichlet_condition_with_multipliers(mim, 'u', 2, 5,
                                                 dataname='influxdata')
     if ins.temp:
         md.add_initialized_fem_data('influxdata_t', mft, [eval(ins.influx_T) * ones_t])
-        md.add_Dirichlet_condition_with_multipliers(mim, 't', 0, 5,
+        md.add_Dirichlet_condition_with_multipliers(mim, 't', 2, 5,
                                                     dataname='influxdata_t')
 
 #### Solve ####
 print('Starting solve')
-
 if not ins.restart:
     # initialize pressure and velocity with incompressible, steady stokes
-    md_init.solve('max_res', 1E-9, 'max_iter', 100, 'noisy')
+    md_init.solve('max_res', 2E-4, 'max_iter', 100, 'noisy')
     p_init = md_init.variable('p')
     u_init = md_init.variable('u')
 
@@ -817,7 +826,7 @@ if not ins.restart:
     md.set_variable('Previous2_u', u_init)
 
     # bootstrap
-    md.solve('max_res', 1E-9, 'max_iter', 100, 'noisy')
+    md.solve('max_res', 1E-6, 'max_iter', 100, 'noisy')
 
     if ins.free_surface:
         Ls1 = md.variable('ls1')
@@ -864,7 +873,8 @@ if not ins.restart:
 
     Previous_d = d_init
     D = ones_u * 0
-    D[eval(ind_u)] = Previous_d[eval(ind_u)] + ins.dt*md.variable('u')
+    solid_u = sciinterp.griddata(D_p.transpose(), solid, D_u.transpose(), method='nearest')
+    D[eval(ind_u)] = Previous_d[eval(ind_u)] + ins.dt*md.variable('u')*solid_u
 
     if ins.temp:
         Previous_T = T_init
@@ -904,12 +914,12 @@ else:
         hf.create_dataset('last_T',data=T)
         hf.create_dataset('last2_T',data=Previous_T)
     if ins.free_surface:
-        hf.create_dataset('last_ls',data=Ls1)
+        hf.create_dataset('last_Ls1',data=Ls1)
     if ins.temp & ins.solidification:
-        hf.create_dataset('last_ls',data=(T-Tg)/Tg)
+        hf.create_dataset('last_Ls2',data=(T_ls-Tg)/Tg)
     if ins.topography:
-        hf.create_dataset('last_ls',data=ls3.values(0))
-    hf.create_dataset('last_ti',data=0)
+        hf.create_dataset('last_Ls3',data=ls3.values(0))
+    hf.create_dataset('last_ti',data=[0])
     hf.close()
 
 # Main loop 
@@ -989,7 +999,7 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
             ls2.set_values((T_ls - Tg) / Tg)
 
     else:
-        eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0))) * ones_p
+        eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0)).replace('vft','ins.vft')) * ones_p
 
     if ins.free_surface:
         eta[(ls1_p > 0)] = ins.eta2
@@ -1049,7 +1059,7 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
                 md.set_variable('basal_flux', [ins.kappa1 * (T - ins.basal_temp_i) / radii_t * ones_t])
 
     # Solve
-    md.solve('max_res', 1E-9, 'max_iter', 100, 'noisy')
+    md.solve('max_res', 1E-6, 'max_iter', 100, 'noisy')
 
     if ins.free_surface:
         # construct extension velocities
@@ -1094,8 +1104,9 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
     Previous2_d = Previous_d
     Previous_d = D
     D = ones_u * 0
+    solid_u = sciinterp.griddata(D_p.transpose(), solid, D_u.transpose(), method='nearest')
     D[eval(ind_u)] = - BDF2 / BDF0 * Previous_d[eval(ind_u)] - BDF1 / BDF0 * Previous2_d[
-        eval(ind_u)] + ins.dt / BDF0 * md.variable('u')
+        eval(ind_u)] + ins.dt / BDF0 * md.variable('u') * solid_u
     D_sol[i + 1, :] = D[ind_sol]
 
     if ins.temp:
@@ -1112,12 +1123,14 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
             u = md.variable('u')
             P = md.variable('p')
 
-            mfu.export_to_vtk(outfile + '/' + outfile + '_' + numstr + '_u.vtk', u)
-            mfp.export_to_vtk(outfile + '/' + outfile + '_' + numstr + '_P.vtk', P)
+            mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_' + numstr + '_u.vtk', u)
+            mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_' + numstr + '_P.vtk', P)
             if ins.temp:
                 T = md.variable('t')
-                mft.export_to_vtk(outfile + '/' + outfile + '_' + numstr + '_T.vtk', T)
-                mfp.export_to_vtk(outfile + '/' + outfile + '_' + numstr + '_mu.vtk', mu)
+                mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_' + numstr + '_T.vtk', T)
+                mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_' + numstr + '_mu.vtk', mu)
+                if ins.solidification:
+                    mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_' + numstr + '_d.vtk', D)
 
         hf = h5py.File(ins.outfile + '.h5','a')
         hf['last_u'][:] = U
@@ -1130,12 +1143,12 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
             hf['last_T'][:] = T
             hf['last2_T'][:] = Previous_T
         if ins.free_surface:
-            hf['last_ls1'][:] = Ls1
+            hf['last_Ls1'][:] = Ls1
         if ins.temp & ins.solidification:
-            hf['last_ls2'][:] = (T_ls - Tg) / Tg
+            hf['last_Ls2'][:] = (T_ls - Tg) / Tg
         if ins.topography:
-            hf['last_ls3'][:] = ls3.values(0)
-        hf['last_ti'][:] = ti
+            hf['last_Ls3'][:] = ls3.values(0)
+        hf['last_ti'][:] = [ti]
         hf.close()
 
 if ins.free_surface:
@@ -1238,4 +1251,4 @@ if ins.plots:
     ax[0, 1].set_title('V', fontsize=18)
     ax[1, 0].set_title('P', fontsize=18)
 
-    fig2.savefig(outfile + '/' + outfile + '_solution.pdf')
+    fig2.savefig(outfile + '/' + ins.outfile.split('/')[-1] + '_solution.pdf')
