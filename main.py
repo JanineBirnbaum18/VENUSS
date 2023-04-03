@@ -530,8 +530,8 @@ md.add_initialized_fem_data('lambda', mfp, lam)
 md.add_initialized_fem_data('mu', mfp, mu)
 md.add_initialized_fem_data('solid', mfp, solid)
 
-md_init.add_initialized_fem_data('lambda', mfp, lam)
-md_init.add_initialized_fem_data('mu', mfp, mu)
+md_init.add_initialized_fem_data('lambda', mfp, 0*lam)
+md_init.add_initialized_fem_data('mu', mfp, eta)
 
 if ins.free_surface | (ins.temp & ins.solidification) | ins.topography:
     mls_cut = mls.cut_mesh()
@@ -813,7 +813,7 @@ if ins.influx:
 print('Starting solve')
 if not ins.restart:
     # initialize pressure and velocity with incompressible, steady stokes
-    md_init.solve('max_res', 2E-4, 'max_iter', 100, 'noisy')
+    md_init.solve('max_res', 1E-10, 'max_iter', 100, 'noisy')
     p_init = md_init.variable('p')
     u_init = md_init.variable('u')
 
