@@ -11,7 +11,7 @@ import skfmm
 import getfem as gf
 from getfem import *
 
-outfile = './Results/cooled_def'
+outfile = './Results/cooled_solid'
 #outfile = sys.argv[1]
 
 # import simulation parameters
@@ -40,9 +40,10 @@ except Exception as e:
 
 ndigits = int(np.floor(np.log10(ins.tf/ins.dt))) + len(str(ins.dt).split('.')[-1].lstrip('0')
                                                        ) + len(str(ins.dt).split('.')[0].rstrip('0'))
-if '.' in str(ins.dt)[:ndigits+1]:
+
+if '.' in str(ins.dt)[:ndigits+2]:
     ndigits += 1
-    ndecimal = len(str(ins.dt)[:ndigits+1].split('.')[-1].rstrip('0'))
+    ndecimal = len(str(ins.dt)[:ndigits+2].split('.')[-1].rstrip('0'))
 else:
     ndecimal = 0
 
@@ -593,15 +594,14 @@ if ins.compressible:
 else:
     time_int_u = "-rho*((BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u)"
 linear_elastic = "lambda*(Div_u*Div_Test_u) + mu*((Grad_u + Grad_u'):Grad_Test_u)"
-residual_stress1 = "(lambda*(Div_Previous_d*Div_Test_u) + mu*((Grad_Previous_d + Grad_Previous_u'):Grad_Test_u))*BDF1/BDF0*solid"
+residual_stress1 = "(lambda*(Div_Previous_d*Div_Test_u) + mu*((Grad_Previous_d + Grad_Previous_d'):Grad_Test_u))*BDF1/BDF0*solid"
 residual_stress2 = "(lambda*(Div_Previous2_d*Div_Test_u) + mu*((Grad_Previous2_d + Grad_Previous2_d'):Grad_Test_u))*BDF2/BDF0*solid"\
 
 if ins.steady:
-    if ins.solidification:
-        md.add_nonlinear_term(mim, 'solid*' + time_int_u)
+    md.add_nonlinear_term(mim, 'solid*' + time_int_u)
 else:
     md.add_nonlinear_term(mim, time_int_u)
-md.add_nonlinear_term(mim, "-(Grad_Previous_p).Test_u")
+md.add_nonlinear_term(mim, "(solid-1)*(Grad_Previous_p).Test_u")
 md.add_nonlinear_term(mim, linear_elastic)
 
 if ins.solidification:
@@ -663,7 +663,6 @@ for i, bound in enumerate(bounds):
 
     # Dirichlet boundaries
     dirichlet = False
-    print(type(eval('ins.' + bound + '_ux')))
     if (type(eval('ins.' + bound + '_ux')) is float) or (type(eval('ins.' + bound + '_ux')) is int):
         data_ux = eval('ins.' + bound + '_ux') * ones_p
         dirichlet = True
@@ -823,8 +822,9 @@ if not ins.restart:
     md.set_variable('Previous_u', u_init)
     md.set_variable('Previous2_u', u_init)
 
+    print('time = 0')
     # bootstrap
-    md.solve('max_res', 1E-6, 'max_iter', 100, 'noisy')
+    md.solve('max_res', 1E-10, 'max_iter', 100, 'noisy')
 
     if ins.free_surface:
         Ls1 = md.variable('ls1')
@@ -887,16 +887,26 @@ if not ins.restart:
         u = md.variable('u')
         P = md.variable('p')
 
-        mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + '0'*ndigits + '.vtk', u)
-        mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + '0'*ndigits + '.vtk', P)
+        mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + '0'*ndigits + '.vtk', u_init)
+        mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + '0'*ndigits + '.vtk', p_init)
         if ins.temp:
             T = md.variable('t')
-            mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_T_' + '0'*ndigits + '.vtk', T)
+            mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_T_' + '0'*ndigits + '.vtk', T_init)
             mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + '0'*ndigits + '.vtk', mu)
             if ins.solidification:
-                mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + '0'*ndigits + '.vtk', D)
+                mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + '0'*ndigits + '.vtk', d_init)
 
-    print('time = 0')
+        if (ins.noutput==1):
+            numstr = str(ins.dt * 10 ** ndecimal).split('.')[0].zfill(ndigits)
+
+            mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + numstr + '.vtk', U)
+            mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + numstr + '.vtk', P)
+            if ins.temp:
+                T = md.variable('t')
+                mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_T_' + numstr + '.vtk', T)
+                mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + numstr + '.vtk', mu)
+                if ins.solidification:
+                    mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + numstr + '.vtk', D)
 
 # update BDF coefficients
 BDF0 = 3 / 2
