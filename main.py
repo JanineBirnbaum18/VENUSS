@@ -509,8 +509,10 @@ md.add_initialized_data('BDF0', [1])
 md.add_initialized_data('BDF1', [-1])
 md.add_initialized_data('BDF2', [0])
 
+md_init.add_initialized_data('dt', [ins.dt])
+
 # Elasticity
-lam = ones_p * 0
+lam = -2/3*eta
 mu = eta
 solid = 0 * ones_p
 
@@ -518,20 +520,21 @@ if ins.temp & ins.solidification:
     lam_solid = ins.E * ins.nu / ((1 + ins.nu) * (1 - 2 * ins.nu))
     mu_solid = ins.E / (2 * (1 + ins.nu))
     if ins.free_surface:
-        lam[(ls1_p <= 0) & (T_p < Tg)] = lam_solid * ins.dt
-        mu[(ls1_p <= 0) & (T_p < Tg)] = mu_solid * ins.dt
+        lam[(ls1_p <= 0) & (T_p < Tg)] = lam_solid
+        mu[(ls1_p <= 0) & (T_p < Tg)] = mu_solid
         solid[(ls1_p <= 0) & (T_p < Tg)] = 1
     else:
-        lam[(T_p < Tg)] = lam_solid * ins.dt
-        mu[(T_p < Tg)] = mu_solid * ins.dt
+        lam[(T_p < Tg)] = lam_solid
+        mu[(T_p < Tg)] = mu_solid
         solid[(T_p < Tg)] = 1
 
 md.add_initialized_fem_data('lambda', mfp, lam)
 md.add_initialized_fem_data('mu', mfp, mu)
 md.add_initialized_fem_data('solid', mfp, solid)
 
-md_init.add_initialized_fem_data('lambda', mfp, 0*lam)
-md_init.add_initialized_fem_data('mu', mfp, eta)
+md_init.add_initialized_fem_data('lambda', mfp, lam)
+md_init.add_initialized_fem_data('mu', mfp, mu)
+md_init.add_initialized_fem_data('solid', mfp, solid)
 
 if ins.free_surface | (ins.temp & ins.solidification) | ins.topography:
     mls_cut = mls.cut_mesh()
@@ -565,8 +568,7 @@ md_init.add_fem_variable('u', mfu)
 md_init.add_fem_variable('p', mfp)
 
 md_init.add_linear_incompressibility_brick(mim_all, 'u', 'p')
-md_init.add_isotropic_linearized_elasticity_brick(mim_all, 'u', 'lambda', 'mu')
-#md_init.add_source_term_brick(mim_all, 'u', 'Grad_p')
+md_init.add_isotropic_linearized_elasticity_brick(mim_all, 'u', 'lambda*(dt*solid + (1-solid))', 'mu*(dt*solid + (1-solid))')
 
 md.add_macro('h', 'element_size')
 
@@ -589,23 +591,18 @@ else:
     md.add_linear_incompressibility_brick(mim, 'u', 'p')
 
 # mometum balance
-if ins.compressible:
-    time_int_u = "-((BDF0*rho*u+BDF1*Previous_rho*Previous_u+BDF2*Previous2_rho*Previous2_u)/dt.Test_u)"
-else:
-    time_int_u = "-rho*((BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u)"
-linear_elastic = "lambda*(Div_u*Div_Test_u) + mu*((Grad_u + Grad_u'):Grad_Test_u)"
-residual_stress1 = "(lambda*(Div_Previous_d*Div_Test_u) + mu*((Grad_Previous_d + Grad_Previous_d'):Grad_Test_u))*BDF1/BDF0*solid"
-residual_stress2 = "(lambda*(Div_Previous2_d*Div_Test_u) + mu*((Grad_Previous2_d + Grad_Previous2_d'):Grad_Test_u))*BDF2/BDF0*solid"\
+time_int_u = "rho*((BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u)"
+linear_elastic = "(lambda*(Div_u*Div_Test_u) + mu*((Grad_u + Grad_u'):Grad_Test_u))*(dt/BDF0*solid + (1-solid))"
+residual_stress1 = "-(lambda*(Div_Previous_d*Div_Test_u) + mu*((Grad_Previous_d + Grad_Previous_d'):Grad_Test_u))*(BDF1/BDF0)*solid"
+residual_stress2 = "-(lambda*(Div_Previous2_d*Div_Test_u) + mu*((Grad_Previous2_d + Grad_Previous2_d'):Grad_Test_u))*(BDF2/BDF0)*solid"
 
 if ins.steady:
     md.add_nonlinear_term(mim, 'solid*' + time_int_u)
 else:
     md.add_nonlinear_term(mim, time_int_u)
-md.add_nonlinear_term(mim, "(solid-1)*(Grad_Previous_p).Test_u")
 md.add_nonlinear_term(mim, linear_elastic)
-
 if ins.solidification:
-    md.add_nonlinear_term(mim, residual_stress1 + '+' + residual_stress2)
+    md.add_nonlinear_term(mim, residual_stress1 + residual_stress2)
 
 if ins.temp:
     time_int = "(BDF0*t+BDF1*Previous_t+BDF2*Previous2_t)/dt"
@@ -873,6 +870,7 @@ if not ins.restart:
     D = ones_u * 0
     solid_u = sciinterp.griddata(D_p.transpose(), solid, D_u.transpose(), method='nearest')
     D[eval(ind_u)] = Previous_d[eval(ind_u)] + ins.dt*md.variable('u')*solid_u
+    Previous_d = ones_u * D
 
     if ins.temp:
         Previous_T = T_init
@@ -912,6 +910,7 @@ if not ins.restart:
 BDF0 = 3 / 2
 BDF1 = -2
 BDF2 = 1 / 2
+
 md.set_variable('BDF0', [BDF0])
 md.set_variable('BDF1', [BDF1])
 md.set_variable('BDF2', [BDF2])
@@ -1024,17 +1023,17 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
         eta[ls3_p < 0] = ins.eta3
     mu = eta
 
-    lam = 0 * ones_p
-    solid = ones_p * 0
+    lam = -2/3*eta
+    solid = 0 * ones_p
     if ins.temp & ins.solidification:
         # elasticity
         if ins.free_surface:
-            lam[(ls1_p <= 0) & (ls2_p > 0)] = lam_solid * ins.dt / BDF0
-            mu[(ls1_p <= 0) & (ls2_p > 0)] = mu_solid * ins.dt / BDF0
+            lam[(ls1_p <= 0) & (ls2_p > 0)] = lam_solid
+            mu[(ls1_p <= 0) & (ls2_p > 0)] = mu_solid
             solid[(ls1_p <= 0) & (ls2_p > 0)] = 1
         else:
-            lam[(T_p < Tg)] = lam_solid * ins.dt
-            mu[(T_p < Tg)] = mu_solid * ins.dt
+            lam[(T_p < Tg)] = lam_solid
+            mu[(T_p < Tg)] = mu_solid
             solid[(T_p < Tg)] = 1
 
         md.set_variable('solid', solid)
@@ -1126,7 +1125,7 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
     Previous_d = D
     D = ones_u * 0
     solid_u = sciinterp.griddata(D_p.transpose(), solid, D_u.transpose(), method='nearest')
-    D[eval(ind_u)] = - BDF2 / BDF0 * Previous_d[eval(ind_u)] - BDF1 / BDF0 * Previous2_d[
+    D[eval(ind_u)] = - BDF2 / BDF0 * Previous2_d[eval(ind_u)] - BDF1 / BDF0 * Previous_d[
         eval(ind_u)] + ins.dt / BDF0 * md.variable('u') * solid_u
 
     if ins.temp:
