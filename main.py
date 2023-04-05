@@ -11,7 +11,7 @@ import skfmm
 import getfem as gf
 from getfem import *
 
-outfile = './Results/cooled_solid'
+outfile = './Results/melting_solid'
 #outfile = sys.argv[1]
 
 # import simulation parameters
@@ -469,7 +469,6 @@ if ins.temp:
             T_init = eval(ins.T_init)
         elif type(ins.T_init) is type(None):
              T_init = mft.eval('1') * ins.T0
-
         if ins.free_surface:
             T_init[ls1_t > 0] = ins.T_atm
         if ins.topography:
@@ -869,7 +868,7 @@ if not ins.restart:
     Previous_d = d_init
     D = ones_u * 0
     solid_u = sciinterp.griddata(D_p.transpose(), solid, D_u.transpose(), method='nearest')
-    D[eval(ind_u)] = Previous_d[eval(ind_u)] + ins.dt*md.variable('u')*solid_u
+    D[eval(ind_u)] = (Previous_d[eval(ind_u)] + ins.dt*md.variable('u'))*solid_u
     Previous_d = ones_u * D
 
     if ins.temp:
@@ -1125,8 +1124,8 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
     Previous_d = D
     D = ones_u * 0
     solid_u = sciinterp.griddata(D_p.transpose(), solid, D_u.transpose(), method='nearest')
-    D[eval(ind_u)] = - BDF2 / BDF0 * Previous2_d[eval(ind_u)] - BDF1 / BDF0 * Previous_d[
-        eval(ind_u)] + ins.dt / BDF0 * md.variable('u') * solid_u
+    D[eval(ind_u)] = (- BDF2 / BDF0 * Previous2_d[eval(ind_u)] - BDF1 / BDF0 * Previous_d[
+        eval(ind_u)] + ins.dt / BDF0 * md.variable('u')) * solid_u
 
     if ins.temp:
         Previous_T = T
