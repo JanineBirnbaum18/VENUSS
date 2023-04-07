@@ -11,11 +11,10 @@ import skfmm
 import getfem as gf
 from getfem import *
 
-outfile = './Results/melting_solid'
-#outfile = sys.argv[1]
+outfile = './Results/cooling_vft'
 
 # import simulation parameters
-with open(outfile + '.json', 'r') as openfile:
+with open(outfile + '/' + outfile.split('/')[-1] + '.json', 'r') as openfile:
     dictionary = json.load(openfile)
 
 ins = SimpleNamespace(**dictionary)
@@ -33,11 +32,6 @@ elif type(ins.Tg) is type(str):
 elif type(ins.Tg) is type(None):
     Tg = ins.vftc + ins.vftb/(12-ins.vfta) - 273
 
-try:
-    os.listdir('./' + ins.outfile)
-except Exception as e:
-    os.mkdir('./' + ins.outfile)
-
 ndigits = int(np.floor(np.log10(ins.tf/ins.dt))) + len(str(ins.dt).split('.')[-1].lstrip('0')
                                                        ) + len(str(ins.dt).split('.')[0].rstrip('0'))
 
@@ -49,7 +43,7 @@ else:
 
 if ins.restart:
     try:
-        hf = h5py.File(ins.outfile + '.h5', 'r')
+        hf = h5py.File(ins.outfile + '/' + ins.outfile.split('/')[-1] + '.h5', 'r')
         U = hf.get('last_u')[:]
         Previous_u = hf.get('last2_u')[:]
         P = hf.get('last_p')[:]
@@ -918,7 +912,7 @@ if ins.restart:
     tstart = last_ti
 else:
     tstart = ins.dt
-    hf = h5py.File(ins.outfile + '.h5', 'w')
+    hf = h5py.File(ins.outfile + '/' + ins.outfile.split('/')[-1] + '.h5', 'w')
     hf.create_dataset('last_u',data=U)
     hf.create_dataset('last2_u',data=Previous_u)
     hf.create_dataset('last_p',data=P)
@@ -1150,7 +1144,7 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
                 if ins.solidification:
                     mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + numstr + '.vtk', D)
 
-        hf = h5py.File(ins.outfile + '.h5','a')
+        hf = h5py.File(ins.outfile + '/' + ins.outfile.split('/')[-1] + '.h5','a')
         hf['last_u'][:] = U
         hf['last2_u'][:] = Previous_u
         hf['last_p'][:] = P

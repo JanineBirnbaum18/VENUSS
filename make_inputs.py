@@ -1,4 +1,6 @@
 import json
+import os
+import shutil
 
 dictionary = {
     # mesh geometry
@@ -46,7 +48,7 @@ dictionary = {
     "temp": True,
     "solidification": True,
     "T0": 1000, # lava temperature (deg C)
-    "T_init": None, # initial temperature field, None sets initial lava temperature to T0
+    "T_init": 1000, # initial temperature field, None sets initial lava temperature to T0
     "T_atm": 25, # initial atmospheric temperature (deg C)
     "basal_temp_i": 600, # initial basal temperature in deg C
     "kappa1": 1e-3, # thermal diffusivity (m2/s)
@@ -121,8 +123,8 @@ dictionary = {
     "basal_flux": None, # in W/m2 or 'conduction'
 
     # time discretization
-    "tf": 0.1, # final time in s
-    "dt": 0.05, # time step in s
+    "tf": 50.0, # final time in s
+    "dt": 0.5, # time step in s
     "restart": False,
 
     # Solve options
@@ -131,11 +133,27 @@ dictionary = {
     "solve_air": False, # turn to false to neglect velocity solution in fluid 2
 
     # output options
-    "outfile": 'cooling_solidification_moving',
-    "noutput": 2, # number of timesteps between output
+    "outfile": './Results/cooling_vft',
+    "noutput": 1, # number of timesteps between output
     "vtk": True,
+    "viz": 'T_u_and_d.py',
     "plots": True,
     "plot_mesh": False}
 
-with open(dictionary["outfile"] + '.json', 'w') as outfile:
+try:
+    os.listdir('./' + dictionary["outfile"])
+except Exception as e:
+    os.mkdir('./' + dictionary["outfile"])
+
+with open(dictionary["outfile"] + '/' + dictionary["outfile"].split('/')[-1] + '.json', 'w') as outfile:
     json.dump(dictionary,outfile)
+
+if not(type(dictionary["viz"]) is type(None)):
+    shutil.copy('./' + dictionary["viz"],'./' + dictionary["outfile"] + '/' + dictionary["viz"])
+    with open(r'./' + dictionary["viz"], 'r') as file:
+        vizdata = file.read()
+        vizdata = vizdata.replace('fileloc',str(os.getcwd()) + dictionary["outfile"].strip('.'))
+
+    with open(r'./' + dictionary["outfile"] + '/' + dictionary["viz"], 'w') as file:
+        file.write(vizdata)
+    file.close()
