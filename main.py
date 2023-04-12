@@ -1,7 +1,7 @@
 import sys
 import os
 import json
-from types import SimpleNamespace
+from types import SimpleNamespacels_u
 import h5py
 
 import matplotlib.pyplot as plt
@@ -11,7 +11,7 @@ import skfmm
 import getfem as gf
 from getfem import *
 
-outfile = './Results/cooling_vft'
+outfile = './Results/spreading_drop_iso_lslinear_lsinterp'
 
 # import simulation parameters
 with open(outfile + '/' + outfile.split('/')[-1] + '.json', 'r') as openfile:
@@ -110,7 +110,7 @@ if ins.vtk:
 # Levelset definition:
 # free surface
 if ins.free_surface:
-    ls1 = gf.LevelSet(mesh, 1, ins.ls1p, ins.ls1s)
+    ls1 = gf.LevelSet(mesh, ins.ls_k, ins.ls1p, ins.ls1s)
     mls = gf.MeshLevelSet(mesh)
     mls.add(ls1)
 
@@ -118,14 +118,14 @@ if ins.free_surface:
 if ins.temp & ins.solidification:
     if not ins.free_surface:
         mls = gf.MeshLevelSet(mesh)
-    ls2 = gf.LevelSet(mesh, 1, ins.ls2p, ins.ls2s)
+    ls2 = gf.LevelSet(mesh, ins.ls_k, ins.ls2p, ins.ls2s)
     mls.add(ls2)
 
 # topography
 if ins.topography:
     if not (ins.free_surface | (ins.temp & ins.solidification)):
         mls = gf.MeshLevelSet(mesh)
-    ls3 = gf.LevelSet(mesh, 1, ins.ls3p, ins.ls3s)
+    ls3 = gf.LevelSet(mesh, ins.ls_k, ins.ls3p, ins.ls3s)
     mls.add(ls3)
 
 if ins.restart:
@@ -213,24 +213,30 @@ if ins.plots:
 # to define the integration method on the remaining elements
 
 if ins.free_surface | (ins.temp & ins.solidification) | ins.topography:
-    mim_all = gf.MeshIm('levelset', mls, 'all', gf.Integ('IM_STRUCTURED_COMPOSITE(IM_TRIANGLE(6),3)'))
+    mim_all = gf.MeshIm('levelset', mls, 'all', gf.Integ('IM_TRIANGLE(5)'))
+    mim_all.set_integ(4)
     if ins.solve_topography:
         if ins.solve_air | (not ins.free_surface):
-            mim = gf.MeshIm('levelset', mls, 'all', gf.Integ('IM_STRUCTURED_COMPOSITE(IM_TRIANGLE(6),3)'))
+            mim = gf.MeshIm('levelset', mls, 'all', gf.Integ('IM_TRIANGLE(5)'))
         else:
-            mim = gf.MeshIm('levelset', mls, 'inside(a+c)', gf.Integ('IM_STRUCTURED_COMPOSITE(IM_TRIANGLE(6),3)'))
+            mim = gf.MeshIm('levelset', mls, 'inside(a+c)', gf.Integ('IM_TRIANGLE(5)'))
+        mim.set_integ(4)
     else:
         if ins.solve_air | (not ins.free_surface):
-            mim = gf.MeshIm('levelset', mls, 'outside(c)', gf.Integ('IM_STRUCTURED_COMPOSITE(IM_TRIANGLE(6),3)'))
+            mim = gf.MeshIm('levelset', mls, 'outside(c)', gf.Integ('IM_TRIANGLE(5)'))
         else:
-            mim = gf.MeshIm('levelset', mls, 'inside(a-c)', gf.Integ('IM_STRUCTURED_COMPOSITE(IM_TRIANGLE(6),3)'))
+            mim = gf.MeshIm('levelset', mls, 'inside(a-c)', gf.Integ('IM_TRIANGLE(5)'))
+        mim.set_integ(4)
     if ins.free_surface:
-        mim_surf = gf.MeshIm('levelset', mls, 'boundary(a+c)', gf.Integ('IM_STRUCTURED_COMPOSITE(IM_TRIANGLE(6),3)'))
+        mim_surf = gf.MeshIm('levelset', mls, 'boundary(a+c)', gf.Integ('IM_TRIANGLE(5)'))
+        mim_surf.set_integ(4)
 
     if ins.topography:
-        mim_base = gf.MeshIm('levelset', mls, 'boundary(c)', gf.Integ('IM_STRUCTURED_COMPOSITE(IM_TRIANGLE(6),3)'))
+        mim_base = gf.MeshIm('levelset', mls, 'boundary(c)', gf.Integ('IM_TRIANGLE(5)'))
+        mim_base.set_integ(4)
 
-    mim_integ = gf.MeshIm('levelset', mls, 'boundary(a-c)', gf.Integ('IM_STRUCTURED_COMPOSITE(IM_TRIANGLE(6),3)'))
+    mim_integ = gf.MeshIm('levelset', mls, 'boundary(a-c)', gf.Integ('IM_TRIANGLE(5)'))
+    mim_integ.set_integ(4)
 else:
     mim_all = gf.MeshIm(mesh,4)
     mim = gf.MeshIm(mesh,4)
@@ -252,7 +258,7 @@ mfp.set_classical_fem(ins.p_k)  # continuous piecewise linear
 # mfp.set_classical_discontinuous_fem(0) # continuous piecewise linear
 
 mfls = gf.MeshFem(mesh, 1)
-mfls.set_classical_fem(1)
+mfls.set_classical_fem(ins.ls_k)
 
 # temperature
 if ins.temp:
@@ -265,14 +271,6 @@ if ins.temp:
 
 # if solidification:
 #    mim_crust = gf.MeshIm('levelset',mls,'inside(a+b+!c)', gf.Integ('IM_STRUCTURED_COMPOSITE(IM_TRIANGLE(6),3)'))
-
-if ins.free_surface | (ins.temp & ins.solidification) | ins.topography:
-    mim_all.set_integ(4)
-    mim.set_integ(4)  # integration method for elements not cut by the level set
-else:
-    mim = gf.MeshIm(mesh)
-    mim.set_integ(4)
-# mim_surf.set_integ(4)
 
 # above topography
 if ins.free_surface | (ins.temp & ins.solidification) | ins.topography:
@@ -336,36 +334,10 @@ if ins.free_surface:
     mls.adapt()
     # mim.adapt()
 
-    ls1_p = sciinterp.griddata(D_ls.transpose(), ls1.values(0), D_p.transpose(), method='nearest')
-    ls1_u = sciinterp.griddata(D_ls.transpose(), ls1.values(0), D_u.transpose(), method='nearest')
-    # ls1_p = compute_interpolate_on(mfls,ls1.values(0),mfp)
-    # ls1_u = compute_interpolate_on(mfls,ls1.values(0),mfu.basic_dof_nodes().transpose())
-    if ins.temp:
-        ls1_t = sciinterp.griddata(D_ls.transpose(), ls1.values(0), D_t.transpose(), method='nearest')
-        # ls1_t = compute_interpolate_on(mfls,ls1.values(0),mft)
-
     if ins.plots:
         ax.tricontour(x_ls, y_ls, ls1.values(0), levels=[0], colors='k')
         cbar = ax.tricontourf(x_ls, y_ls, ls1.values(0), levels=[-10, 0, 10])
         # plt.colorbar(cbar,ax=ax)
-
-if ins.temp & ins.solidification:
-    ls2_p = sciinterp.griddata(D_ls.transpose(), ls2.values(0), D_p.transpose(), method='nearest')
-    ls2_u = sciinterp.griddata(D_ls.transpose(), ls2.values(0), D_u.transpose(), method='nearest')
-    # ls2_p = compute_interpolate_on(mfls,ls2.values(0),mfp)
-    # ls2_u = compute_interpolate_on(mfls,ls2.values(0),mfu.basic_dof_nodes().transpose())
-    if ins.temp:
-        ls2_t = sciinterp.griddata(D_ls.transpose(), ls2.values(0), D_t.transpose(), method='nearest')
-        # ls2_t = compute_interpolate_on(mfls,ls2.values(0),mft)
-
-if ins.topography:
-    ls3_p = sciinterp.griddata(D_ls.transpose(), ls3.values(0), D_p.transpose(), method='nearest')
-    ls3_u = sciinterp.griddata(D_ls.transpose(), ls3.values(0), D_u.transpose(), method='nearest')
-    # ls3_p = compute_interpolate_on(mfls,ls3.values(0),mfp)
-    # ls3_u = compute_interpolate_on(mfls,ls3.values(0),mfu.basic_dof_nodes().transpose())
-    if ins.temp:
-        ls3_t = sciinterp.griddata(D_ls.transpose(), ls3.values(0), D_t.transpose(), method='nearest')
-        # ls3_t = compute_interpolate_on(mfls,ls3.values(0),mft)
 
 if ins.plots:
     ax2.set_xlim(ax.get_xlim())
@@ -416,32 +388,32 @@ else:
     md.add_initialized_fem_data('Previous2_d', mfu, d_init)
 
 # Density
-rho = ones_p * ins.rho1
+rho = ones_ls * ins.rho1
 if ins.free_surface:
-    rho[ls1_p > 0] = ins.rho2
+    rho[ls1.values(0) > 0] = ins.rho2
 if ins.topography:
-    rho[ls3_p < 0] = ins.rho3
-md.add_initialized_fem_data('rho', mfp, rho)
-md.add_initialized_fem_data('rho_init', mfp, rho)
+    rho[ls3.values(0) < 0] = ins.rho3
+md.add_initialized_fem_data('rho', mfls, rho)
+md.add_initialized_fem_data('rho_init', mfls, rho)
 
-md_init.add_initialized_fem_data('rho', mfp, rho)
+md_init.add_initialized_fem_data('rho', mfls, rho)
 
 # Compressibility
-beta = ones_p * ins.beta1
+beta = ones_ls * ins.beta1
 if ins.free_surface:
-    rho[ls1_p > 0] = ins.beta2
+    beta[ls1.values(0) > 0] = ins.beta2
 if ins.topography:
-    rho[ls3_p < 0] = ins.beta3
-md.add_initialized_fem_data('beta', mfp, beta)
+    beta[ls3.values(0) < 0] = ins.beta3
+md.add_initialized_fem_data('beta', mfls, beta)
 
 if ins.temp:
     # Thermal diffusivity
-    kappa = ones_t * ins.kappa1
+    kappa = ones_ls * ins.kappa1
     if ins.free_surface:
-        kappa[ls1_t > 0] = ins.kappa2
+        kappa[ls1.values(0) > 0] = ins.kappa2
     if ins.topography:
-        kappa[ls3_t < 0] = ins.kappa3
-    md.add_initialized_fem_data('kappa', mft, kappa)
+        kappa[ls3.values(0) < 0] = ins.kappa3
+    md.add_initialized_fem_data('kappa', mfls, kappa)
     md.add_initialized_data('cp', [ins.cp])
 
 # Temperature
@@ -479,22 +451,23 @@ if ins.temp:
 # viscosity
 if ins.temp:
     T_p = sciinterp.griddata(D_t.transpose(), T_init, D_p.transpose(), method='nearest')
+    T_ls = sciinterp.griddata(D_t.transpose(), T_init, D_ls.transpose(), method='nearest')
     eta_exp = ins.eta_exp.replace('vfta', str(ins.vfta)).replace('vftb', str(ins.vftb)).replace(
         'vftc', str(ins.vftc))
 
-    eta = eval(eta_exp.replace('exp', 'np.exp').replace('T', 'T_p'))
-    eta[T_p <= (ins.vftc - 273)] = ins.max_eta
+    eta = eval(eta_exp.replace('exp', 'np.exp').replace('T', 'T_ls'))
+    eta[T_ls <= (ins.vftc - 273)] = ins.max_eta
 
     if ins.free_surface:
-        eta[ls1_p > 0] = ins.eta2
+        eta[ls1.values(0) > 0] = ins.eta2
     if ins.topography:
-        eta[ls3_p < 0] = ins.eta3
+        eta[ls3.values(0) < 0] = ins.eta3
 else:
-    eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0)).replace('vft','ins.vft')) * ones_p
+    eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0)).replace('vft','ins.vft')) * ones_ls
     if ins.free_surface:
-        eta[ls1_p > 0] = ins.eta2
+        eta[ls1.values(0) > 0] = ins.eta2
     if ins.topography:
-        eta[ls3_p < 0] = ins.eta3
+        eta[ls3.values(0) < 0] = ins.eta3
 
 # time dependence
 md.add_initialized_data('dt', [ins.dt])
@@ -507,27 +480,27 @@ md_init.add_initialized_data('dt', [ins.dt])
 # Elasticity
 lam = -2/3*eta
 mu = eta
-solid = 0 * ones_p
+solid = 0 * ones_ls
 
 if ins.temp & ins.solidification:
     lam_solid = ins.E * ins.nu / ((1 + ins.nu) * (1 - 2 * ins.nu))
     mu_solid = ins.E / (2 * (1 + ins.nu))
     if ins.free_surface:
-        lam[(ls1_p <= 0) & (T_p < Tg)] = lam_solid
-        mu[(ls1_p <= 0) & (T_p < Tg)] = mu_solid
-        solid[(ls1_p <= 0) & (T_p < Tg)] = 1
+        lam[(ls1.values(0) <= 0) & (T_ls < Tg)] = lam_solid
+        mu[(ls1.values(0) <= 0) & (T_ls < Tg)] = mu_solid
+        solid[(ls1.values(0) <= 0) & (T_ls < Tg)] = 1
     else:
-        lam[(T_p < Tg)] = lam_solid
-        mu[(T_p < Tg)] = mu_solid
-        solid[(T_p < Tg)] = 1
+        lam[(T_ls < Tg)] = lam_solid
+        mu[(T_ls < Tg)] = mu_solid
+        solid[(T_ls < Tg)] = 1
 
-md.add_initialized_fem_data('lambda', mfp, lam)
-md.add_initialized_fem_data('mu', mfp, mu)
-md.add_initialized_fem_data('solid', mfp, solid)
+md.add_initialized_fem_data('lambda', mfls, lam)
+md.add_initialized_fem_data('mu', mfls, mu)
+md.add_initialized_fem_data('solid', mfls, solid)
 
-md_init.add_initialized_fem_data('lambda', mfp, lam)
-md_init.add_initialized_fem_data('mu', mfp, mu)
-md_init.add_initialized_fem_data('solid', mfp, solid)
+md_init.add_initialized_fem_data('lambda', mfls, lam)
+md_init.add_initialized_fem_data('mu', mfls, mu)
+md_init.add_initialized_fem_data('solid', mfls, solid)
 
 if ins.free_surface | (ins.temp & ins.solidification) | ins.topography:
     mls_cut = mls.cut_mesh()
@@ -539,7 +512,7 @@ if ins.free_surface | (ins.temp & ins.solidification) | ins.topography:
         radii_t = sciinterp.griddata(D_cut.transpose(), radii, D_t.transpose())
 
 else:
-    radii = np.mean(mesh.convex_radius()) * ones_p
+    radii = np.mean(mesh.convex_radius()) * ones_ls
     if ins.temp:
         radii_t = np.mean(mesh.convex_radius()) * ones_t
 
@@ -629,23 +602,23 @@ if (type(ins.f_x) is type(None)) and (type(ins.f_y) is type(None)):
     f_yi = None
 else:
     if (type(ins.f_x) is float) or (type(ins.f_x) is int):
-        f_xi = ones_p * ins.f_x
+        f_xi = ones_ls * ins.f_x
     elif type(ins.f_x) is str:
-        f_xi = eval(ins.f_x.replace('y', 'y_p').replace('x', 'x_p'))
+        f_xi = eval(ins.f_x.replace('y', 'y_ls').replace('x', 'x_ls'))
     elif type(ins.f_x) is type(None):
-        f_xi = ones_p * 0
+        f_xi = ones_ls * 0
 
     if (type(ins.f_y) is float) or (type(ins.f_y) is int):
-        f_yi = ones_p * ins.f_y
+        f_yi = ones_ls * ins.f_y
     elif type(ins.f_y) is str:
-        f_yi = eval(ins.f_y.replace('y', 'y_p').replace('x', 'x_p'))
+        f_yi = eval(ins.f_y.replace('y', 'y_ls').replace('x', 'x_ls'))
     elif type(ins.f_y) is type(None):
-        f_yi = ones_p * 0
+        f_yi = ones_ls * 0
 
-    md.add_initialized_fem_data('body', mfp, [f_xi, f_yi])
+    md.add_initialized_fem_data('body', mfls, [f_xi, f_yi])
     md.add_source_term_brick(mim, 'u', 'body')
 
-    md_init.add_initialized_fem_data('body', mfp, [f_xi, f_yi])
+    md_init.add_initialized_fem_data('body', mfls, [f_xi, f_yi])
     md_init.add_source_term_brick(mim_all, 'u', 'body')
 
 # add boundary conditions
@@ -750,10 +723,10 @@ if ins.temp:
             # Neumann boundaries
             else:
                 if (type(eval('ins.' + bound + '_flux_T')) is float) or (type(eval('ins.' + bound + '_flux_T')) is int):
-                    data_t = -eval('ins.' + bound + '_flux_T') * ones_t * kappa
+                    data_t = -eval('ins.' + bound + '_flux_T') * ones_ls * kappa
                 if type(eval('ins.' + bound + '_flux_T')) is str:
                     data_t = -eval(eval('ins.' + bound + '_flux_T')) * kappa
-                md.add_initialized_fem_data(bound + 'data_t', mft, [data_t, data_t])
+                md.add_initialized_fem_data(bound + 'data_t', mfls, [data_t, data_t])
                 md.add_normal_source_term_brick(mim, 't', bound + 'data_t', i + 1)
 
     # add temperature or flux to free surface (default to temperature if provided)
@@ -861,7 +834,7 @@ if not ins.restart:
 
     Previous_d = d_init
     D = ones_u * 0
-    solid_u = sciinterp.griddata(D_p.transpose(), solid, D_u.transpose(), method='nearest')
+    solid_u = sciinterp.griddata(D_ls.transpose(), solid, D_u.transpose(), method='nearest')
     D[eval(ind_u)] = (Previous_d[eval(ind_u)] + ins.dt*md.variable('u'))*solid_u
     Previous_d = ones_u * D
 
@@ -880,24 +853,32 @@ if not ins.restart:
 
         mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + '0'*ndigits + '.vtk', u_init)
         mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + '0'*ndigits + '.vtk', p_init)
+        if ins.free_surface:
+            mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + '0'*ndigits + '.vtk', Ls1)
+            mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_rho_' + '0' * ndigits + '.vtk', rho)
         if ins.temp:
             T = md.variable('t')
             mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_T_' + '0'*ndigits + '.vtk', T_init)
-            mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + '0'*ndigits + '.vtk', mu)
+            mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + '0'*ndigits + '.vtk', mu)
             if ins.solidification:
                 mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + '0'*ndigits + '.vtk', d_init)
-
+                mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls2_' + '0' * ndigits + '.vtk', (T_init-Tg)/Tg)
         if (ins.noutput==1):
             numstr = str(ins.dt * 10 ** ndecimal).split('.')[0].zfill(ndigits)
 
             mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + numstr + '.vtk', U)
             mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + numstr + '.vtk', P)
+            if ins.free_surface:
+                mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + '0' * ndigits + '.vtk', Ls1)
+                mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_rho_' + '0' * ndigits + '.vtk', rho)
             if ins.temp:
                 T = md.variable('t')
                 mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_T_' + numstr + '.vtk', T)
-                mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + numstr + '.vtk', mu)
+                mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + numstr + '.vtk', mu)
                 if ins.solidification:
                     mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + numstr + '.vtk', D)
+                    mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls2_' + '0' * ndigits + '.vtk',
+                                      (T_init - Tg) / Tg)
 
 # update BDF coefficients
 BDF0 = 3 / 2
@@ -954,12 +935,7 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
     if ins.free_surface:
         mim_surf.adapt()
 
-        ls1_p = sciinterp.griddata(D_ls.transpose(), ls1.values(0), D_p.transpose(), method='nearest')
-        ls1_u = sciinterp.griddata(D_ls.transpose(), ls1.values(0), D_u.transpose(), method='nearest')
-        # ls1_p = compute_interpolate_on(mfls,ls1.values(0),mfp)
-        # ls1_u = compute_interpolate_on(mfls,ls1.values(0),mfu.basic_dof_nodes().transpose())
         if ins.temp:
-            ls1_t = sciinterp.griddata(D_ls.transpose(), ls1.values(0), D_t.transpose(), method='nearest')
             mls_cut = mls.cut_mesh()
             radii = np.zeros(mls_cut.nbpts())
             D_cut = mls_cut.pts()
@@ -971,26 +947,32 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
 
     if ins.free_surface | ins.topography:
         mfp_cut.set_partial(eval(ind_p))
-        # mfp_cut.set_partial(np.where(ls3_p>0))
         mfu_cut.set_partial(eval(ind_u))
         if ins.temp:
             mft_cut.set_partial(eval(ind_t))
 
     # density
     if ins.free_surface:
-        rho[(ls1_p <= 0)] = ins.rho1
-        rho[(ls1_p > 0)] = ins.rho2
+        rho[(ls1.values(0) <= 0)] = ins.rho1
+        rho[(ls1.values(0) > 0)] = ins.rho2
     if ins.topography:
-        rho[ls3_p < 0] = ins.rho3
+        rho[ls3.values(0) < 0] = ins.rho3
     md.set_variable('rho', rho)
+
+    if ins.free_surface:
+        beta[(ls1.values(0) <= 0)] = ins.beta1
+        beta[(ls1.values(0) > 0)] = ins.beta2
+    if ins.topography:
+        beta[ls3.values(0) < 0] = ins.beta3
+    md.set_variable('beta', beta)
 
     if ins.temp:
         # thermal diffusivity
         if ins.free_surface:
-            kappa[(ls1_t <= 0)] = ins.kappa1
-            kappa[(ls1_t > 0)] = ins.kappa2
+            kappa[(ls1.values(0) <= 0)] = ins.kappa1
+            kappa[(ls1.values(0) > 0)] = ins.kappa2
         if ins.topography:
-            kappa[ls3_t < 0] = ins.kappa3
+            kappa[ls3.values(0) < 0] = ins.kappa3
         md.set_variable('kappa', kappa)
 
         # shift_variables_for_time_integration
@@ -999,35 +981,36 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
 
         # update viscosity field
         T_p = sciinterp.griddata(D_t.transpose(), T, D_p.transpose(), method='nearest')
-        eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', 'T_p').replace('vft','ins.vft'))
+        T_ls = sciinterp.griddata(D_t.transpose(), T, D_p.transpose(), method='nearest')
+        eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', 'T_ls').replace('vft','ins.vft'))
         eta[eta > ins.max_eta] = ins.max_eta
-        eta[T_p <= (ins.vftc - 273)] = ins.max_eta
+        eta[T_ls <= (ins.vftc - 273)] = ins.max_eta
 
         T_ls = sciinterp.griddata(D_t.transpose(), T, D_ls.transpose(), method='nearest')
         if ins.temp & ins.solidification:
             ls2.set_values((T_ls - Tg) / Tg)
 
     else:
-        eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0)).replace('vft','ins.vft')) * ones_p
+        eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0)).replace('vft','ins.vft')) * ones_ls
 
     if ins.free_surface:
-        eta[(ls1_p > 0)] = ins.eta2
+        eta[(ls1.values(0) > 0)] = ins.eta2
     if ins.topography:
-        eta[ls3_p < 0] = ins.eta3
+        eta[ls3.values(0) < 0] = ins.eta3
     mu = eta
 
     lam = -2/3*eta
-    solid = 0 * ones_p
+    solid = 0 * ones_ls
     if ins.temp & ins.solidification:
         # elasticity
         if ins.free_surface:
-            lam[(ls1_p <= 0) & (ls2_p > 0)] = lam_solid
-            mu[(ls1_p <= 0) & (ls2_p > 0)] = mu_solid
-            solid[(ls1_p <= 0) & (ls2_p > 0)] = 1
+            lam[(ls1.values(0) <= 0) & (ls2.values(0) > 0)] = lam_solid
+            mu[(ls1.values(0) <= 0) & (ls2.values(0) > 0)] = mu_solid
+            solid[(ls1.values(0) <= 0) & (ls2.values(0) > 0)] = 1
         else:
-            lam[(T_p < Tg)] = lam_solid
-            mu[(T_p < Tg)] = mu_solid
-            solid[(T_p < Tg)] = 1
+            lam[(T_ls < Tg)] = lam_solid
+            mu[(T_ls < Tg)] = mu_solid
+            solid[(T_ls < Tg)] = 1
 
         md.set_variable('solid', solid)
 
@@ -1040,18 +1023,18 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
         f_yi = None
     else:
         if (type(ins.f_x) is float) or (type(ins.f_x) is int):
-            f_xi = ones_p * ins.f_x
+            f_xi = ones_ls * ins.f_x
         elif type(ins.f_x) is str:
-            f_xi = eval(ins.f_x.replace('y', 'y_p').replace('x', 'x_p'))
+            f_xi = eval(ins.f_x.replace('y', 'y_ls').replace('x', 'x_ls'))
         elif type(ins.f_x) is type(None):
-            f_xi = ones_p * 0
+            f_xi = ones_ls * 0
 
         if (type(ins.f_y) is float) or (type(ins.f_y) is int):
-            f_yi = ones_p * ins.f_y
+            f_yi = ones_ls * ins.f_y
         elif type(ins.f_y) is str:
-            f_yi = eval(ins.f_y.replace('y', 'y_p').replace('x', 'x_p'))
+            f_yi = eval(ins.f_y.replace('y', 'y_ls').replace('x', 'x_ls'))
         elif type(ins.f_y) is type(None):
-            f_yi = ones_p * 0
+            f_yi = ones_ls * 0
 
         md.set_variable('body', [f_xi, f_yi])
 
@@ -1117,7 +1100,7 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
     Previous2_d = Previous_d
     Previous_d = D
     D = ones_u * 0
-    solid_u = sciinterp.griddata(D_p.transpose(), solid, D_u.transpose(), method='nearest')
+    solid_u = sciinterp.griddata(D_ls.transpose(), solid, D_u.transpose(), method='nearest')
     D[eval(ind_u)] = (- BDF2 / BDF0 * Previous2_d[eval(ind_u)] - BDF1 / BDF0 * Previous_d[
         eval(ind_u)] + ins.dt / BDF0 * md.variable('u')) * solid_u
 
@@ -1137,12 +1120,16 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
 
             mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + numstr + '.vtk', u)
             mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + numstr + '.vtk', P)
+            if ins.free_surface:
+                mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + numstr + '.vtk', Ls1)
+                mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_rho_' + numstr + '.vtk', rho)
             if ins.temp:
                 T = md.variable('t')
                 mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_T_' + numstr + '.vtk', T)
                 mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + numstr + '.vtk', mu)
                 if ins.solidification:
                     mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + numstr + '.vtk', D)
+                    mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls2_' + numstr + '.vtk', (T-Tg)/Tg)
 
         hf = h5py.File(ins.outfile + '/' + ins.outfile.split('/')[-1] + '.h5','a')
         hf['last_u'][:] = U
@@ -1168,24 +1155,12 @@ if ins.free_surface:
 if ins.free_surface | (ins.temp & ins.solidification) | ins.topography:
     mls.adapt()
 
-if ins.free_surface:
-    ls1_p = sciinterp.griddata(D_ls.transpose(), ls1.values(0), D_p.transpose(), method='nearest')
-    ls1_u = sciinterp.griddata(D_ls.transpose(), ls1.values(0), D_u.transpose(), method='nearest')
-    # ls1_p = compute_interpolate_on(mfls,ls1.values(0),mfp)
-    # ls1_u = compute_interpolate_on(mfls,ls1.values(0),mfu.basic_dof_nodes().transpose())
-    if ins.temp:
-        ls1_t = sciinterp.griddata(D_ls.transpose(), ls1.values(0), D_t.transpose(), method='nearest')
-        T_ls = sciinterp.griddata(D_t.transpose(), T, D_ls.transpose(), method='nearest')
-        if ins.solidification:
-            ls2.set_values((T_ls - Tg) / Tg)
-            ls2_p = sciinterp.griddata(D_ls.transpose(), ls2.values(0), D_p.transpose(), method='nearest')
-            ls2_u = sciinterp.griddata(D_ls.transpose(), ls2.values(0), D_u.transpose(), method='nearest')
-
-        # ls1_t = compute_interpolate_on(mfls,ls1.values(0),mft)
+if ins.temp & ins.solidification:
+    T_ls = sciinterp.griddata(D_t.transpose(), T, D_ls.transpose(), method='nearest')
+    ls2.set_values((T_ls - Tg) / Tg)
 
 if ins.free_surface | ins.topography:
     mfp_cut.set_partial(eval(ind_p))
-    # mfp_cut.set_partial(np.where(ls3_p>0))
     mfu_cut.set_partial(eval(ind_u))
     if ins.temp:
         mft_cut.set_partial(eval(ind_t))
@@ -1208,12 +1183,6 @@ if ins.free_surface & ins.solve_air:
     ind_p_plot = eval(ind_p)
     if ins.temp:
         ind_t_plot = eval(ind_t)
-
-elif ins.free_surface:
-    ind_u_plot = ls1_u[eval(ind_u)] <= 0
-    ind_p_plot = ls1_p[eval(ind_p)] <= 0
-    if ins.temp:
-        ind_t_plot = ls1_t[eval(ind_t)] <= 0
 
 else:
     ind_u_plot = eval(ind_u)

@@ -16,10 +16,11 @@ dictionary = {
     "u_k": 2, # polynomial order
     "p_k": 1,
     "t_k": 2,
+    "ls_k": 1,
 
     # initial free surface level set
-    "free_surface": False,
-    "ls1p": "0*x-1", # String using x,y,and z in m
+    "free_surface": True,
+    "ls1p": "(((x-0.25)*(x-0.25)+(y-0.225)*(y-0.225))-(0.125*0.125))", # String using x,y,and z in m
     "ls1s": None,
 
     # initial temperature level set
@@ -27,9 +28,9 @@ dictionary = {
     "ls2s": None,
 
     # topography level set
-    "topography": False,
-    "solve_topography": False,
-    "ls3p": "0*x+1",
+    "topography": True,
+    "solve_topography": True,
+    "ls3p": "y-0.225",
     "ls3s": None,
 
     # Pressure
@@ -40,15 +41,15 @@ dictionary = {
     "rho2": 1, # density where ls1p>0 (air) (kg/m3)
     "rho3": 3000, # density where ls3p<0 (ground) (kg/m3)
 
-    "beta1": 1e-5, # compressibility (1/Pa)
-    "beta2": 1e-5,
-    "beta3": 1e-5,
+    "beta1": 1e-10, # compressibility (1/Pa)
+    "beta2": 1e-10,
+    "beta3": 1e-10,
 
     # Temperature
-    "temp": True,
-    "solidification": True,
+    "temp": False,
+    "solidification": False,
     "T0": 1000, # lava temperature (deg C)
-    "T_init": 1000, # initial temperature field, None sets initial lava temperature to T0
+    "T_init": None, # initial temperature field, None sets initial lava temperature to T0
     "T_atm": 25, # initial atmospheric temperature (deg C)
     "basal_temp_i": 600, # initial basal temperature in deg C
     "kappa1": 1e-3, # thermal diffusivity (m2/s)
@@ -62,9 +63,9 @@ dictionary = {
 
     # Viscosity
     "eta_exp": "exp(vfta + vftb/(T + 273 - vftc))", # (Pas)
-    "vfta": -4.55,
-    "vftb": 5978.4,
-    "vftc": 595.3,
+    "vfta": 4.605,
+    "vftb": 0.0,
+    "vftc": 0.0,
     "Tg": 500, # (deg C)
     "max_eta": 1e7, # (Pas)
     "eta2": 1, # (Pas)
@@ -76,23 +77,23 @@ dictionary = {
 
     # Body force, velocity boundary conditions
     "f_x": None, # body force (N/m3)
-    "f_y": None,
-    "left_ux": 0, # Dirichlet velocity condition (m/s) as float,str,or None
-    "left_uy": 0,
-    "left_udx": None, # Neumann velocity condition (1/s)
-    "left_udy": None,
-    "right_ux": 0,
-    "right_uy": 0.001,
-    "right_udx": None,
-    "right_udy": None,
+    "f_y": '-9.81*rho',
+    "left_ux": None, # Dirichlet velocity condition (m/s) as float,str,or None
+    "left_uy": None,
+    "left_udx": 0, # Neumann velocity condition (1/s)
+    "left_udy": 0,
+    "right_ux": None,
+    "right_uy": None,
+    "right_udx": 0,
+    "right_udy": 0,
     "top_ux": None,
     "top_uy": None,
     "top_udx": 0,
     "top_udy": 0,
-    "bottom_ux": None,
-    "bottom_uy": None,
-    "bottom_udx": 0,
-    "bottom_udy": 0,
+    "bottom_ux": 0,
+    "bottom_uy": 0,
+    "bottom_udx": None,
+    "bottom_udy": None,
 
     "influx": False,
     "influx_ux": 0, # velocity in m/s
@@ -105,14 +106,14 @@ dictionary = {
     "basal_velocity": 'no_slip', # 'no_slip' or 'no_normal'
 
     # Temp boundary conditions
-    "left_T": 0, # Dirichlet temperature condition (deg C) as float,str, or None
+    "left_T": 25, # Dirichlet temperature condition (deg C) as float,str, or None
     "left_flux_T": None, # Neumann temperature condition (deg C/m)
-    "right_T": 1000,
+    "right_T": 25,
     "right_flux_T": None,
-    "top_T": None,
-    "top_flux_T": 0,
-    "bottom_T": None,
-    "bottom_flux_T": 0,
+    "top_T": 25,
+    "top_flux_T": None,
+    "bottom_T": 100,
+    "bottom_flux_T": None,
 
     "influx_T": 1100,
     "influx_flux_T": None,
@@ -123,20 +124,20 @@ dictionary = {
     "basal_flux": None, # in W/m2 or 'conduction'
 
     # time discretization
-    "tf": 50.0, # final time in s
-    "dt": 0.5, # time step in s
+    "tf": 1.0, # final time in s
+    "dt": 0.001, # time step in s
     "restart": False,
 
     # Solve options
     "stab_p": 'None', # None, SUPG for pressure stabilization
     "stab_t": 'GLS', # None, SUPG, or GLS for temp stabilization
-    "solve_air": False, # turn to false to neglect velocity solution in fluid 2
+    "solve_air": True, # turn to false to neglect velocity solution in fluid 2
 
     # output options
-    "outfile": './Results/cooling_vft',
+    "outfile": './Results/spreading_drop_iso_lslinear_lsinterp',
     "noutput": 1, # number of timesteps between output
     "vtk": True,
-    "viz": 'T_u_and_d.py',
+    "viz": 'basic_viz.py',
     "plots": True,
     "plot_mesh": False}
 
