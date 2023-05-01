@@ -38,6 +38,7 @@ max_u = np.nanmax(np.append(np.array([eval('ins.' + bound + '_ux') for bound in 
                             np.array([eval('ins.' + bound + '_uy') for bound in boundary],dtype=float)))
 min_u = np.nanmin(np.append(np.array([eval('ins.' + bound + '_ux') for bound in boundary],dtype=float),
                             np.array([eval('ins.' + bound + '_uy') for bound in boundary],dtype=float)))
+max_u = np.max([max_u,0.001])
 
 #### disable automatic camera reset on 'Show'
 paraview.simple._DisableFirstRenderCameraReset()
@@ -85,18 +86,20 @@ if ins.temp:
     layout1.AssignView(6, renderView4)
 else:
     layout1 = CreateLayout(name='Layout #1')
-    layout1.SplitVertical(1, 0.500000)
+    layout1.SplitHorizontal(0, 0.500000)
     layout1.AssignView(1, renderView1)
     layout1.AssignView(2, renderView2)
 
 # ----------------------------------------------------------------
 # setup the data processing pipelines
 # ----------------------------------------------------------------
-mu_files = []
-P_files  = []
-u_files  = []
-d_files  = []
-T_files  = []
+mu_files   = []
+P_files    = []
+Ls1_files  = []
+u_files    = []
+d_files    = []
+T_files    = []
+Ls2_files  = []
 
 for file in os.listdir(outfile):
     if 'vtk' in file:
@@ -104,28 +107,41 @@ for file in os.listdir(outfile):
             mu_files.append(outfile + '/' + file)
         if '_P_' in file:
             P_files.append(outfile + '/' + file)
+        if '_Ls1_' in file:
+            Ls1_files.append(outfile + '/' + file)
         if '_u_' in file:
             u_files.append(outfile + '/' + file)
         if '_d_' in file:
             d_files.append(outfile + '/' + file)
         if '_T_' in file:
             T_files.append(outfile + '/' + file)
+        if '_Ls2_' in file:
+            Ls2_files.append(outfile + '/' + file)
 
 # create a new 'Legacy VTK Reader'
 P = LegacyVTKReader(FileNames=P_files,registrationName='P')
 u = LegacyVTKReader(FileNames=u_files,registrationName='u')
+if ins.free_surface:
+    Ls1 = LegacyVTKReader(FileNames=Ls1_files, registrationName='Ls1')
 if ins.temp:
     mu = LegacyVTKReader(FileNames=mu_files,registrationName='mu')
     T = LegacyVTKReader(FileNames=T_files, registrationName='T')
     if ins.solidification:
         d = LegacyVTKReader(FileNames=d_files, registrationName='d')
+        Ls2 = LegacyVTKReader(FileNames=Ls2_files, registrationName='Ls2')
 
 # create a new 'Contour'
-if ins.temp & ins.solidification:
-    contour1 = Contour(Input=T,registrationName='Tg')
+if ins.free_surface:
+    contour1 = Contour(Input=Ls1,registrationName='Free surface')
     contour1.ContourBy = ['POINTS', 'dataset1']
-    contour1.Isosurfaces = [Tg]
+    contour1.Isosurfaces = [0]
     contour1.PointMergeMethod = 'Uniform Binning'
+
+if ins.temp & ins.solidification:
+    contour2 = Contour(Input=T,registrationName='Tg')
+    contour2.ContourBy = ['POINTS', 'dataset1']
+    contour2.Isosurfaces = [Tg]
+    contour2.PointMergeMethod = 'Uniform Binning'
 
 # ----------------------------------------------------------------
 # setup the visualization in view 'renderView1'
@@ -183,14 +199,15 @@ def set_renderView(renderView,field,min_val,max_val,i=1,component='Magnitude',ti
 
     return Display
 
-def set_contour(renderView,contour,min_val,max_val):
+def set_contour(renderView,contour,Display,min_val,max_val):
+    dataset1LUT = GetColorTransferFunction('dataset1', Display, separate=True)
 
     # show data from contour1
-    contourDisplay = Show(contour, renderView, dataset1LUT, 'GeometryRepresentation')
+    contourDisplay = Show(contour, renderView, 'GeometryRepresentation')
 
     # trace defaults for the display properties.
     contourDisplay.Representation = 'Surface'
-    contourDisplay.ColorArrayName = ['POINTS', 'dataset1']
+    contourDisplay.ColorArrayName = ['POINTS', '']
     contourDisplay.LookupTable = dataset1LUT
     contourDisplay.OSPRayScaleArray = 'dataset1'
     contourDisplay.OSPRayScaleFunction = 'PiecewiseFunction'
@@ -208,25 +225,25 @@ def set_contour(renderView,contour,min_val,max_val):
     contourDisplay.PolarAxes = 'PolarAxesRepresentation'
 
     # trace defaults for the display properties.
-    contourDisplay.CompositeDataSetIndex = [0]
-    contourDisplay.XArrayName = 'dataset1'
-    contourDisplay.SeriesVisibility = ['dataset1']
-    contourDisplay.SeriesLabel = ['dataset1', 'Tg', 'Points_X', 'Points_X', 'Points_Y', 'Points_Y', 'Points_Z',
-                                  'Points_Z', 'Points_Magnitude', 'Points_Magnitude']
-    contourDisplay.SeriesColor = ['dataset1', '0', '0', '0', 'Points_X', '0.889998', '0.100008', '0.110002', 'Points_Y',
-                                  '0.220005', '0.489998', '0.719997', 'Points_Z', '0.300008', '0.689998', '0.289998',
-                                  'Points_Magnitude', '0.6', '0.310002', '0.639994']
-    contourDisplay.SeriesPlotCorner = ['Points_Magnitude', '0', 'Points_X', '0', 'Points_Y', '0', 'Points_Z', '0',
-                                       'dataset1', '0']
-    contourDisplay.SeriesLabelPrefix = ''
-    contourDisplay.SeriesLineStyle = ['Points_Magnitude', '1', 'Points_X', '1', 'Points_Y', '1', 'Points_Z', '1',
-                                      'dataset1', '1']
-    contourDisplay.SeriesLineThickness = ['Points_Magnitude', '2', 'Points_X', '2', 'Points_Y', '2', 'Points_Z', '2',
-                                          'dataset1', '2']
-    contourDisplay.SeriesMarkerStyle = ['Points_Magnitude', '0', 'Points_X', '0', 'Points_Y', '0', 'Points_Z', '0',
-                                        'dataset1', '0']
-    contourDisplay.SeriesMarkerSize = ['Points_Magnitude', '4', 'Points_X', '4', 'Points_Y', '4', 'Points_Z', '4',
-                                       'dataset1', '4']
+    #contourDisplay.CompositeDataSetIndex = [0]
+    #contourDisplay.XArrayName = 'dataset1'
+    #contourDisplay.SeriesVisibility = ['dataset1']
+    #contourDisplay.SeriesLabel = ['dataset1', 'Tg', 'Points_X', 'Points_X', 'Points_Y', 'Points_Y', 'Points_Z',
+    #                              'Points_Z', 'Points_Magnitude', 'Points_Magnitude']
+    #contourDisplay.SeriesColor = ['dataset1', '0', '0', '0', 'Points_X', '0.889998', '0.100008', '0.110002', 'Points_Y',
+    #                              '0.220005', '0.489998', '0.719997', 'Points_Z', '0.300008', '0.689998', '0.289998',
+    #                              'Points_Magnitude', '0.6', '0.310002', '0.639994']
+    #contourDisplay.SeriesPlotCorner = ['Points_Magnitude', '0', 'Points_X', '0', 'Points_Y', '0', 'Points_Z', '0',
+    #                                   'dataset1', '0']
+    #contourDisplay.SeriesLabelPrefix = ''
+    #contourDisplay.SeriesLineStyle = ['Points_Magnitude', '1', 'Points_X', '1', 'Points_Y', '1', 'Points_Z', '1',
+    #                                  'dataset1', '1']
+    #contourDisplay.SeriesLineThickness = ['Points_Magnitude', '2', 'Points_X', '2', 'Points_Y', '2', 'Points_Z', '2',
+    #                                      'dataset1', '2']
+    #contourDisplay.SeriesMarkerStyle = ['Points_Magnitude', '0', 'Points_X', '0', 'Points_Y', '0', 'Points_Z', '0',
+    #                                    'dataset1', '0']
+    #contourDisplay.SeriesMarkerSize = ['Points_Magnitude', '4', 'Points_X', '4', 'Points_Y', '4', 'Points_Z', '4',
+    #                                   'dataset1', '4']
 
     # init the 'PiecewiseFunction' selected for 'ScaleTransferFunction'
     contourDisplay.ScaleTransferFunction.Points = [min_val, 0.0, 0.5, 0.0, max_val, 1.0, 0.5, 0.0]
@@ -235,7 +252,7 @@ def set_contour(renderView,contour,min_val,max_val):
     contourDisplay.OpacityTransferFunction.Points = [min_val, 0.0, 0.5, 0.0, max_val, 1.0, 0.5, 0.0]
 
     # show color legend
-    contourDisplay.SetScalarBarVisibility(renderView, True)
+    #contourDisplay.SetScalarBarVisibility(renderView, True)
     return contourDisplay
 
 P_Display = set_renderView(renderView1,P,ins.p_atm,ins.p_atm + ins.L_y*10*ins.rho1,i=1,title='Pressure')
@@ -246,6 +263,14 @@ if ins.temp:
         d_Display = set_renderView(renderView4,d,0,1e-12,i=4,title='Displacement',component='Magnitude')
     else:
         mu_Display = set_renderView(renderView4,mu,0,ins.max_eta,i=4,title='Viscosity')
+
+if ins.free_surface:
+    for renderView in renderViews:
+        set_contour(renderView, contour1, u_Display, 0, 1)
+
+if ins.temp:
+    for renderView in renderViews:
+        set_contour(renderView, contour2, T_Display, 0, 1)
 
 # finally, restore active source
 SetActiveSource(renderView1)

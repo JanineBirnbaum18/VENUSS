@@ -1,7 +1,7 @@
 import sys
 import os
 import json
-from types import SimpleNamespacels_u
+from types import SimpleNamespace
 import h5py
 
 import matplotlib.pyplot as plt
@@ -11,7 +11,7 @@ import skfmm
 import getfem as gf
 from getfem import *
 
-outfile = './Results/spreading_drop_iso_lslinear_lsinterp'
+outfile = './Results/spreading_drop_iso'
 
 # import simulation parameters
 with open(outfile + '/' + outfile.split('/')[-1] + '.json', 'r') as openfile:
@@ -21,8 +21,20 @@ ins = SimpleNamespace(**dictionary)
 
 dx = ins.L_x/ins.nx
 dy = ins.L_y/ins.ny
-xs = np.arange(2*ins.nx)*dx/2+dx/4
-ys = np.arange(2*ins.ny)*dy/2+dy/4
+
+if ins.ls_k == 1:
+if ins.ls_k == 1:
+    xs = np.linspace(0, ins.L_x, ins.nx+1)
+    ys = np.linspace(0, ins.L_y, ins.ny+1)
+
+    dx_ls = dx
+    dy_ls = dy
+elif ins.l_k==2:
+    xs = np.linspace(0, ins.L_x, 2*ins.nx + 1)
+    ys = np.linspace(0, ins.L_y, 2*ins.ny + 1)
+
+    dx_ls = dx/2
+    dy_ls = dy/2
 x_grid, y_grid = np.meshgrid(xs, ys)
 
 if (type(ins.Tg) is float) or (type(ins.Tg) is int):
@@ -312,13 +324,6 @@ if ins.temp:
     x_t = D_t[0, :]
     y_t = D_t[1, :]
 
-# d_temp = sciinterp.griddata(D_ls.transpose(), ls.values(0),
-#                            np.array([x_grid.flatten(),y_grid.flatten()]).transpose(),
-#                            method='linear',fill_value=0).reshape((ny+1,nx+1))
-# ls_init = skfmm.distance(d_temp,dx=[dy,dx]).flatten()
-# ls.set_values(ls_init.flatten())
-# mls.adapt()
-
 if ins.free_surface:
     Ls1 = ls1.values(0)
     if ins.ndim == 2:
@@ -327,7 +332,7 @@ if ins.free_surface:
         Ls1[edges_ls] = max(max(ins.L_x, ins.L_y), ins.L_z)
     Ls_ext = sciinterp.griddata(D_ls.transpose(), Ls1,
                                 np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='nearest')
-    Ls1 = skfmm.distance(Ls_ext.reshape((2 * ins.ny, 2 * ins.nx)), dx=[dy / 2, dx / 2]).flatten()
+    Ls1 = skfmm.distance(Ls_ext.reshape((x_grid.shape)), dx=[dy_ls, dx_ls]).flatten()
     Ls1 = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), Ls1,
                              D_ls.transpose(), method='nearest')
     ls1.set_values(Ls1)
@@ -436,27 +441,24 @@ if ins.temp:
         elif type(ins.T_init) is type(None):
              T_init = mft.eval('1') * ins.T0
         if ins.free_surface:
+            ls1_t = compute_interpolate_on(mfls,ls1.values(0),mft)
             T_init[ls1_t > 0] = ins.T_atm
         if ins.topography:
+            ls3_t = compute_interpolate_on(mfls, ls3.values(0), mft)
             T_init[ls3_t < 0] = ins.T_atm
 
         md.add_initialized_fem_data('Previous_t', mft, T_init)
         md.add_initialized_fem_data('Previous2_t', mft, T_init)
 
-    if ins.temp & ins.solidification:
-        T_ls = sciinterp.griddata(D_t.transpose(), T_init, D_ls.transpose(), method='nearest')
+        T_ls = compute_interpolate_on(mft, T_init, mfls)
+        eta_exp = ins.eta_exp.replace('vfta', str(ins.vfta)).replace('vftb', str(ins.vftb)).replace(
+            'vftc', str(ins.vftc))
+        eta = eval(eta_exp.replace('exp', 'np.exp').replace('T', 'T_ls'))
+        eta[T_ls <= (ins.vftc - 273)] = ins.max_eta
+
+    if ins.solidification:
         ls2.set_values((T_ls - Tg) / Tg)
         mls.adapt()
-
-# viscosity
-if ins.temp:
-    T_p = sciinterp.griddata(D_t.transpose(), T_init, D_p.transpose(), method='nearest')
-    T_ls = sciinterp.griddata(D_t.transpose(), T_init, D_ls.transpose(), method='nearest')
-    eta_exp = ins.eta_exp.replace('vfta', str(ins.vfta)).replace('vftb', str(ins.vftb)).replace(
-        'vftc', str(ins.vftc))
-
-    eta = eval(eta_exp.replace('exp', 'np.exp').replace('T', 'T_ls'))
-    eta[T_ls <= (ins.vftc - 273)] = ins.max_eta
 
     if ins.free_surface:
         eta[ls1.values(0) > 0] = ins.eta2
@@ -471,6 +473,9 @@ else:
 
 # time dependence
 md.add_initialized_data('dt', [ins.dt])
+BDF0 = 1
+BDF1 = -1
+BDF2 = 0
 md.add_initialized_data('BDF0', [1])
 md.add_initialized_data('BDF1', [-1])
 md.add_initialized_data('BDF2', [0])
@@ -486,13 +491,13 @@ if ins.temp & ins.solidification:
     lam_solid = ins.E * ins.nu / ((1 + ins.nu) * (1 - 2 * ins.nu))
     mu_solid = ins.E / (2 * (1 + ins.nu))
     if ins.free_surface:
-        lam[(ls1.values(0) <= 0) & (T_ls < Tg)] = lam_solid
-        mu[(ls1.values(0) <= 0) & (T_ls < Tg)] = mu_solid
-        solid[(ls1.values(0) <= 0) & (T_ls < Tg)] = 1
+        lam[(ls1.values(0) <= 0) & (ls2.values(0) < 0)] = lam_solid
+        mu[(ls1.values(0) <= 0) & (ls2.values(0) < 0)] = mu_solid
+        solid[(ls1.values(0) <= 0) & (ls2.values(0) < 0)] = 1
     else:
-        lam[(T_ls < Tg)] = lam_solid
-        mu[(T_ls < Tg)] = mu_solid
-        solid[(T_ls < Tg)] = 1
+        lam[(ls2.values(0) < 0)] = lam_solid
+        mu[(ls2.values(0) < 0)] = mu_solid
+        solid[(ls2.values(0) < 0)] = 1
 
 md.add_initialized_fem_data('lambda', mfls, lam)
 md.add_initialized_fem_data('mu', mfls, mu)
@@ -559,6 +564,7 @@ else:
 # mometum balance
 time_int_u = "rho*((BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u)"
 linear_elastic = "(lambda*(Div_u*Div_Test_u) + mu*((Grad_u + Grad_u'):Grad_Test_u))*(dt/BDF0*solid + (1-solid))"
+linear_elastic_adv = "(lambda*(Trace(Grad(u.Grad_Previous_d))*Div_Test_u) + mu*((Grad(u.Grad_Previous_d) + Grad(u.Grad_Previous_d)'):Grad_Test_u))*(dt/BDF0*solid)"
 residual_stress1 = "-(lambda*(Div_Previous_d*Div_Test_u) + mu*((Grad_Previous_d + Grad_Previous_d'):Grad_Test_u))*(BDF1/BDF0)*solid"
 residual_stress2 = "-(lambda*(Div_Previous2_d*Div_Test_u) + mu*((Grad_Previous2_d + Grad_Previous2_d'):Grad_Test_u))*(BDF2/BDF0)*solid"
 
@@ -567,6 +573,7 @@ if ins.steady:
 else:
     md.add_nonlinear_term(mim, time_int_u)
 md.add_nonlinear_term(mim, linear_elastic)
+#md.add_nonlinear_term(mim, linear_elastic_adv)
 if ins.solidification:
     md.add_nonlinear_term(mim, residual_stress1 + residual_stress2)
 
@@ -658,28 +665,28 @@ for i, bound in enumerate(bounds):
     else:
         # Neumann boundaries
         if (type(eval('ins.' + bound + '_udx')) is float) or (type(eval('ins.' + bound + '_udx')) is int):
-            data_udx = eval('ins.' + bound + '_udx') * ones_p
+            data_udx = eval('ins.' + bound + '_udx') * ones_u
         if type(eval('ins.' + bound + '_udx')) is str:
             data_udx = eval(eval('ins.' + bound + '_udx'))
         if type(eval('ins.' + bound + '_udy')) is type(None):
-            data_udy = 0 * ones_p
+            data_udy = 0 * ones_u
 
         if (type(eval('ins.' + bound + '_udy')) is float) or (type(eval('ins.' + bound + '_udy')) is int):
-            data_udy = eval('ins.' + bound + '_udy') * ones_p
+            data_udy = eval('ins.' + bound + '_udy') * ones_u
         if type(eval('ins.' + bound + '_udy')) is str:
             data_udy = eval(eval('ins.' + bound + '_udy'))
         if type(eval('ins.' + bound + '_udx')) is type(None):
-            data_udx = 0 * ones_p
+            data_udx = 0 * ones_u
 
-        md.add_initialized_fem_data(bound + 'data', mfp, [data_udx, data_udy])
-        md_init.add_initialized_fem_data(bound + 'data', mfp, [data_udx, data_udy])
+        md.add_initialized_fem_data(bound + 'data', mfu, [data_udx, data_udy])
+        md_init.add_initialized_fem_data(bound + 'data', mfu, [data_udx, data_udy])
 
-        md.add_source_term_brick(mim, 'u', bound + 'data', region=i + 1)
-        md_init.add_source_term_brick(mim_all, 'u', bound + 'data', region=i + 1)
+        md.add_normal_source_term_brick(mim, 'u', bound + 'data', i + 1)
+        md_init.add_normal_source_term_brick(mim_all, 'u', bound + 'data', i + 1)
 
 # add pressure on boundary or free surface
 md.add_initialized_fem_data('patm', mfp, [ins.p_atm * ones_p])
-md_init.add_initialized_fem_data('patm', mfp, ins.p_atm * ones_p)
+md_init.add_initialized_fem_data('patm', mfp, [ins.p_atm * ones_p])
 if ins.solve_air | (not ins.free_surface):
     md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 3, dataname='patm')
     md_init.add_Dirichlet_condition_with_multipliers(mim_all, 'p', 1, 3, dataname='patm')
@@ -776,7 +783,7 @@ if ins.influx:
 print('Starting solve')
 if not ins.restart:
     # initialize pressure and velocity with incompressible, steady stokes
-    md_init.solve('max_res', 1E-10, 'max_iter', 100, 'noisy')
+    md_init.solve('max_res', 1E-8, 'max_iter', 10, 'noisy')
     p_init = md_init.variable('p')
     u_init = md_init.variable('u')
 
@@ -785,9 +792,12 @@ if not ins.restart:
     md.set_variable('Previous_u', u_init)
     md.set_variable('Previous2_u', u_init)
 
+    mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_uinit_' + '0' * ndigits + '.vtk', u_init)
+    mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Pinit_' + '0' * ndigits + '.vtk', p_init)
+
     print('time = 0')
     # bootstrap
-    md.solve('max_res', 1E-10, 'max_iter', 100, 'noisy')
+    md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
 
     if ins.free_surface:
         Ls1 = md.variable('ls1')
@@ -799,26 +809,24 @@ if not ins.restart:
         Grad_mag = np.sqrt(Grad_Ls[0, :] ** 2 + Grad_Ls[1, :] ** 2)
         Grad_Ls[:, Grad_mag > 0] = Grad_Ls[:, Grad_mag > 0] / Grad_mag[Grad_mag > 0]
 
-        u = md.variable('u')
+        if ins.free_surface | ins.topography:
+            u_ls = compute_interpolate_on(mfu_cut,md.variable('u'),mfls)
+        else:
+            u_ls = compute_interpolate_on(mfu,md.variable('u'),mfls)
 
-        u_ls = sciinterp.griddata(mfu.basic_dof_nodes()[:, eval(ind_u)][:, ::2].transpose(), u[::2], D_ls.transpose(),
-                                  method='nearest')
-        v_ls = sciinterp.griddata(mfu.basic_dof_nodes()[:, eval(ind_u)][:, 1::2].transpose(), u[1::2], D_ls.transpose(),
-                                  method='nearest')
-
-        F_ext = sciinterp.griddata(D_ls.transpose(), u_ls * Grad_Ls[0, :] + v_ls * Grad_Ls[1, :],
+        F_ext = sciinterp.griddata(D_ls.transpose(), u_ls[0,:] * Grad_Ls[0, :] + u_ls[1,:] * Grad_Ls[1, :],
                                    np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='nearest')
         Ls_ext = sciinterp.griddata(D_ls.transpose(), Ls1,
                                     np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='nearest')
 
-        d, F_ext = skfmm.extension_velocities(Ls_ext.reshape((2 * ins.ny, 2 * ins.nx)),
-                                              F_ext.reshape((2 * ins.ny, 2 * ins.nx)),
-                                              dx=[dy / 2, dx / 2])
+        d_ls1, F_ext = skfmm.extension_velocities(Ls_ext.reshape(x_grid.shape),
+                                              F_ext.reshape(x_grid.shape),
+                                              dx=[dy_ls, dx_ls])
         F_ext = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), F_ext.flatten(),
                                    D_ls.transpose(),
                                    method='nearest').flatten()
-        d = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), d.flatten(), D_ls.transpose(),
-                               method='nearest').flatten()
+        #d = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), d.flatten(), D_ls.transpose(),
+        #                       method='nearest').flatten()
         # md.set_variable('fext',F_ext.flatten())
 
         compute_convect(mfls, Ls1, mfls, F_ext * Grad_Ls, ins.dt, 100)
@@ -833,19 +841,48 @@ if not ins.restart:
     P[eval(ind_p)] = md.variable('p')
 
     Previous_d = d_init
-    D = ones_u * 0
-    solid_u = sciinterp.griddata(D_ls.transpose(), solid, D_u.transpose(), method='nearest')
-    D[eval(ind_u)] = (Previous_d[eval(ind_u)] + ins.dt*md.variable('u'))*solid_u
-    Previous_d = ones_u * D
+    D = -Previous_d*BDF1/BDF0
 
     if ins.temp:
         Previous_T = T_init
         T = ones_t * ins.T_atm
         T[eval(ind_t)] = md.variable('t')
 
-        T_ls = sciinterp.griddata(D_t.transpose(), T, D_ls.transpose(), method='nearest')
+        T_ls = compute_interpolate_on(mft,T,mfls)
         if ins.solidification:
             ls2.set_values((T_ls - Tg) / Tg)
+
+            solid_u = compute_interpolate_on(mfls, solid, mfu.basic_dof_nodes())
+            compute_convect(mfu, D, mfu, U, ins.dt, 100)
+            D += ins.dt/BDF0 * U * solid_u
+
+            if np.max(T) <= Tg:
+                d_ls2 = np.ones(x_grid.shape) * (-2 * np.max([ins.L_x, ins.L_y]))
+            else:
+                Ls2_ext = sciinterp.griddata(D_ls.transpose(), ls2.values(0),
+                                             np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                                             method='nearest')
+                d_ls2 = skfmm.distance(Ls2_ext.reshape(x_grid.shape), dx=[dy_ls, dx_ls])
+
+            if ins.free_surface:
+                d = np.maximum(np.array(d_ls1), np.array(d_ls2))
+            else:
+                d = d_ls2
+
+            d, D_ext_x = skfmm.extension_velocities(d, compute_interpolate_on(mfu, D, mfls)[0,:].reshape(x_grid.shape),
+                                                      dx=[dy_ls, dx_ls])
+            d, D_ext_y = skfmm.extension_velocities(d, compute_interpolate_on(mfu, D, mfls)[1, :].reshape(x_grid.shape),
+                                                    dx=[dy_ls, dx_ls])
+            D_ext_x = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), D_ext_x.flatten(),
+                                       D_u.transpose(),
+                                       method='nearest').flatten()
+            D_ext_y = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), D_ext_y.flatten(),
+                                         D_u.transpose(),
+                                         method='nearest').flatten()
+            D_ext = D_ext_x
+            D_ext[1::2] = D_ext_y[1::2]
+            D[solid_u<1] = D_ext[solid_u<1]
+            Previous_d = ones_u * D
 
     if ins.vtk:
         u = md.variable('u')
@@ -942,6 +979,7 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
             for pid in mls_cut.pid():
                 radii[pid] = np.min(mls_cut.convex_radius(mls_cut.cvid_from_pid(pid, share=True)))
             radii_t = sciinterp.griddata(D_cut.transpose(), radii, D_t.transpose())
+            #radii_t = compute_interpolate_on(mls_cut,radii,mft)
             # md.set_variable('h',radii_t)
             # ls1_t = compute_interpolate_on(mfls,ls1.values(0),mft)
 
@@ -980,13 +1018,10 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
         md.set_variable('Previous_t', T)
 
         # update viscosity field
-        T_p = sciinterp.griddata(D_t.transpose(), T, D_p.transpose(), method='nearest')
-        T_ls = sciinterp.griddata(D_t.transpose(), T, D_p.transpose(), method='nearest')
+        T_ls = compute_interpolate_on(mft,T,mfls)
         eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', 'T_ls').replace('vft','ins.vft'))
         eta[eta > ins.max_eta] = ins.max_eta
         eta[T_ls <= (ins.vftc - 273)] = ins.max_eta
-
-        T_ls = sciinterp.griddata(D_t.transpose(), T, D_ls.transpose(), method='nearest')
         if ins.temp & ins.solidification:
             ls2.set_values((T_ls - Tg) / Tg)
 
@@ -1004,13 +1039,13 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
     if ins.temp & ins.solidification:
         # elasticity
         if ins.free_surface:
-            lam[(ls1.values(0) <= 0) & (ls2.values(0) > 0)] = lam_solid
-            mu[(ls1.values(0) <= 0) & (ls2.values(0) > 0)] = mu_solid
-            solid[(ls1.values(0) <= 0) & (ls2.values(0) > 0)] = 1
+            lam[(ls1.values(0) <= 0) & (ls2.values(0) <= 0)] = lam_solid
+            mu[(ls1.values(0) <= 0) & (ls2.values(0) <= 0)] = mu_solid
+            solid[(ls1.values(0) <= 0) & (ls2.values(0) <= 0)] = 1
         else:
-            lam[(T_ls < Tg)] = lam_solid
-            mu[(T_ls < Tg)] = mu_solid
-            solid[(T_ls < Tg)] = 1
+            lam[ls2.values(0) <= 0] = lam_solid
+            mu[ls2.values(0) <= 0] = mu_solid
+            solid[ls2.values(0) <= 0] = 1
 
         md.set_variable('solid', solid)
 
@@ -1037,8 +1072,7 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
             f_yi = ones_ls * 0
 
         md.set_variable('body', [f_xi, f_yi])
-
-            # update surface flux
+    # update surface flux
     if ins.free_surface:
         if type(ins.surface_flux) is str:
             surface_flux_budget = ones_t * 0
@@ -1055,7 +1089,7 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
                 md.set_variable('basal_flux', [ins.kappa1 * (T - ins.basal_temp_i) / radii_t * ones_t])
 
     # Solve
-    md.solve('max_res', 1E-10, 'max_iter', 100, 'noisy')
+    md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
 
     if ins.free_surface:
         # construct extension velocities
@@ -1064,28 +1098,26 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
         Grad_mag = np.sqrt(Grad_Ls[0, :] ** 2 + Grad_Ls[1, :] ** 2)
         Grad_Ls[:, Grad_mag > 0] = Grad_Ls[:, Grad_mag > 0] / Grad_mag[Grad_mag > 0]
 
-        u = md.variable('u')
+        if ins.free_surface | ins.topography:
+            u_ls = compute_interpolate_on(mfu_cut,md.variable('u'),mfls)
+        else:
+            u_ls = compute_interpolate_on(mfu,md.variable('u'),mfls)
 
-        u_ls = sciinterp.griddata(mfu.basic_dof_nodes()[:, eval(ind_u)][:, ::2].transpose(), u[::2], D_ls.transpose(),
-                                  method='nearest', fill_value=0)
-        v_ls = sciinterp.griddata(mfu.basic_dof_nodes()[:, eval(ind_u)][:, 1::2].transpose(), u[1::2], D_ls.transpose(),
-                                  method='nearest', fill_value=0)
-
-        F_ext = sciinterp.griddata(D_ls.transpose(), u_ls * Grad_Ls[0, :] + v_ls * Grad_Ls[1, :],
+        F_ext = sciinterp.griddata(D_ls.transpose(), u_ls[0,:] * Grad_Ls[0, :] + u_ls[1,:] * Grad_Ls[1, :],
                                    np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
                                    method='nearest', fill_value=0)
         Ls_ext = sciinterp.griddata(D_ls.transpose(), Ls1,
                                     np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
                                     method='nearest', fill_value=1)
 
-        d, F_ext = skfmm.extension_velocities(Ls_ext.reshape((2 * ins.ny, 2 * ins.nx)), F_ext.reshape((2 * ins.ny, 2 * ins.nx)),
-                                              dx=[dy / 2, dx / 2])
+        d, F_ext = skfmm.extension_velocities(Ls_ext.reshape(x_grid.shape), F_ext.reshape(x_grid.shape),
+                                              dx=[dy_ls, dx_ls])
         F_ext = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), F_ext.flatten(),
                                    D_ls.transpose(),
                                    method='nearest').flatten()
-        d = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), d.flatten(),
-                               D_ls.transpose(),
-                               method='nearest').flatten()
+        #d = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), d.flatten(),
+        #                       D_ls.transpose(),
+        #                       method='nearest').flatten()
         compute_convect(mfls, Ls1, mfls, F_ext * Grad_Ls, ins.dt, 100)
         md.set_variable('ls1', Ls1)
 
@@ -1097,17 +1129,50 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
     P = ones_p * 0
     P[eval(ind_p)] = md.variable('p')
 
-    Previous2_d = Previous_d
-    Previous_d = D
-    D = ones_u * 0
-    solid_u = sciinterp.griddata(D_ls.transpose(), solid, D_u.transpose(), method='nearest')
-    D[eval(ind_u)] = (- BDF2 / BDF0 * Previous2_d[eval(ind_u)] - BDF1 / BDF0 * Previous_d[
-        eval(ind_u)] + ins.dt / BDF0 * md.variable('u')) * solid_u
-
     if ins.temp:
+        Previous2_T = Previous_T
         Previous_T = T
         T = ones_t * ins.T_atm
         T[eval(ind_t)] = md.variable('t')
+
+        T_ls = compute_interpolate_on(mft,T,mfls)
+        if ins.solidification:
+            ls2.set_values((T_ls - Tg) / Tg)
+
+            Previous2_d = Previous_d
+            Previous_d = D
+            D = - BDF2 / BDF0 * Previous2_d - BDF1 / BDF0 * Previous_d
+
+            solid_u = compute_interpolate_on(mfls, solid, mfu.basic_dof_nodes())
+            compute_convect(mfu, D, mfu, U, ins.dt, 100)
+            D += ins.dt/BDF0 * U/BDF0 * solid_u
+
+            if np.max(T) <= Tg:
+                d_ls2 = np.ones(x_grid.shape) * (-2 * np.max([ins.L_x, ins.L_y]))
+            else:
+                Ls2_ext = sciinterp.griddata(D_ls.transpose(), ls2.values(0),
+                                             np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                                             method='nearest')
+                d_ls2 = skfmm.distance(Ls2_ext.reshape(x_grid.shape), dx=[dy_ls, dx_ls])
+
+            if ins.free_surface:
+                d = np.maximum(np.array(d_ls1), np.array(d_ls2))
+            else:
+                d = d_ls2
+
+            d, D_ext_x = skfmm.extension_velocities(d, compute_interpolate_on(mfu, D, mfls)[0,:].reshape(x_grid.shape),
+                                                      dx=[dy_ls, dx_ls])
+            d, D_ext_y = skfmm.extension_velocities(d, compute_interpolate_on(mfu, D, mfls)[1, :].reshape(x_grid.shape),
+                                                    dx=[dy_ls, dx_ls])
+            D_ext_x = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), D_ext_x.flatten(),
+                                       D_u.transpose(),
+                                       method='nearest').flatten()
+            D_ext_y = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), D_ext_y.flatten(),
+                                         D_u.transpose(),
+                                         method='nearest').flatten()
+            D_ext = D_ext_x
+            D_ext[1::2] = D_ext_y[1::2]
+            D[solid_u<1] = D_ext[solid_u<1]
 
     if ((i + 1) % ins.noutput == 0) or (np.abs(ti-ins.tf)<ins.dt):
         print('Time = %g' % ti)
@@ -1156,7 +1221,7 @@ if ins.free_surface | (ins.temp & ins.solidification) | ins.topography:
     mls.adapt()
 
 if ins.temp & ins.solidification:
-    T_ls = sciinterp.griddata(D_t.transpose(), T, D_ls.transpose(), method='nearest')
+    T_ls = compute_interpolate_on(mft,T,mfls)
     ls2.set_values((T_ls - Tg) / Tg)
 
 if ins.free_surface | ins.topography:
