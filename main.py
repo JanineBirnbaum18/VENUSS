@@ -18,11 +18,14 @@ with open(outfile + '/' + outfile.split('/')[-1] + '.json', 'r') as openfile:
     dictionary = json.load(openfile)
 
 ins = SimpleNamespace(**dictionary)
+try:
+    ins.ls_k
+except Exception as e:
+    ins.ls_k = 1
 
 dx = ins.L_x/ins.nx
 dy = ins.L_y/ins.ny
 
-if ins.ls_k == 1:
 if ins.ls_k == 1:
     xs = np.linspace(0, ins.L_x, ins.nx+1)
     ys = np.linspace(0, ins.L_y, ins.ny+1)
@@ -263,6 +266,7 @@ if ins.plots:
 # velocity
 mfu = gf.MeshFem(mesh, ins.ndim)  # vector field
 mfu.set_classical_fem(ins.u_k)  # continuous piecewise quadratic
+
 # pressure
 mfp = gf.MeshFem(mesh, 1)  # scalar field
 mfp.set_classical_fem(ins.p_k)  # continuous piecewise linear
@@ -526,11 +530,13 @@ else:
 
 if ins.free_surface | ins.topography:
     md.add_fem_variable('u', mfu_cut)
+    md.add_fem_variable('d',mfu_cut)
     md.add_fem_variable('p', mfp_cut)
     if ins.temp:
         md.add_fem_variable('t', mft_cut)
 else:
     md.add_fem_variable('u', mfu)
+    md.add_fem_variable('d', mfu)
     md.add_fem_variable('p', mfp)
     if ins.temp:
         md.add_fem_variable('t', mft)
@@ -576,18 +582,30 @@ md.add_nonlinear_term(mim, linear_elastic)
 #md.add_nonlinear_term(mim, linear_elastic_adv)
 if ins.solidification:
     md.add_nonlinear_term(mim, residual_stress1 + residual_stress2)
+    time_int_d = "((BDF0*d+BDF1*Previous_d+BDF2*Previous2_d)/dt.Test_d)"
+    advection_d = "(u.Grad_d)*Test_d"
+    md.add_nonlinear_term(mim, time_int_d)
+    md.add_nonlinear_term(mim, advection_d)
+    md.add_nonlinear_term(mim, "-u.Test_d")
+    tau_SUPG_d = "1/(2/dt + 2*Norm(u)/h)"
+    S_SUPG_d = "(u.Grad_d)*(u.Grad_Test_d)"
+
+    md.add_nonlinear_term(mim, tau_SUPG_d + '*(u.Grad_Test_d)*' + time_int_d)
+    md.add_nonlinear_term(mim, tau_SUPG_d + '*' + S_SUPG_d)
+
+    md.disable_variable('d')
 
 if ins.temp:
-    time_int = "(BDF0*t+BDF1*Previous_t+BDF2*Previous2_t)/dt"
-    advection = "(u.Grad_t)*Test_t"
+    time_int_t = "(BDF0*t+BDF1*Previous_t+BDF2*Previous2_t)/dt"
+    advection_t = "(u.Grad_t)*Test_t"
     diffusion = "kappa*(Grad_t.Grad_Test_t)"
     S_SUPG_t = "(u.Grad_t)*(u.Grad_Test_t) + kappa*(Grad_t).Grad(u.Grad_Test_t)"
     S_GLS_t = "(kappa*(Grad(u.Grad_t).Grad_Test_t))"
     md.add_macro('Pe', "h*Norm(u)/(2*kappa)")
     md.add_macro('xi', "min(Pe/3,1)")
 
-    md.add_nonlinear_term(mim, time_int + '*Test_t')
-    md.add_nonlinear_term(mim, advection)
+    md.add_nonlinear_term(mim, time_int_t + '*Test_t')
+    md.add_nonlinear_term(mim, advection_t)
     md.add_nonlinear_term(mim, diffusion)
 
     tau_SUPG_t = '1/(2/dt + 4*kappa/(h*h) + 2*Norm(u)/h)*xi'
@@ -595,11 +613,11 @@ if ins.temp:
     if 'SUPG' in ins.stab_t:
         # tau_supg = 'h/(2*Norm(u))*(cosh(Norm(u)*h/(2*kappa))/sinh(Norm(u)*h/(2*kappa)) - 2*kappa/(h*Norm(u)))'
         # tau_SUPG_t = 'h*h/(4*kappa)*min(1/3,1/Pe)'
-        md.add_nonlinear_term(mim, tau_SUPG_t + '*(u.Grad_Test_t)*' + time_int)
+        md.add_nonlinear_term(mim, tau_SUPG_t + '*(u.Grad_Test_t)*' + time_int_t)
         md.add_nonlinear_term(mim, tau_SUPG_t + '*' + S_SUPG_t)
 
     elif 'GLS' in ins.stab_t:
-        md.add_nonlinear_term(mim, tau_GLS_t + '*(u.Grad_Test_t)*' + time_int)
+        md.add_nonlinear_term(mim, tau_GLS_t + '*(u.Grad_Test_t)*' + time_int_t)
         md.add_nonlinear_term(mim, tau_GLS_t + '*' + S_SUPG_t)
         md.add_nonlinear_term(mim, tau_GLS_t + '*' + S_GLS_t)
 
@@ -800,6 +818,7 @@ if not ins.restart:
     md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
 
     if ins.free_surface:
+        Previous_Ls = md.variable('ls1')
         Ls1 = md.variable('ls1')
         # Previous_ls = md.variable('Previous_ls')
 
@@ -840,9 +859,6 @@ if not ins.restart:
     P = ones_p * 0
     P[eval(ind_p)] = md.variable('p')
 
-    Previous_d = d_init
-    D = -Previous_d*BDF1/BDF0
-
     if ins.temp:
         Previous_T = T_init
         T = ones_t * ins.T_atm
@@ -852,9 +868,16 @@ if not ins.restart:
         if ins.solidification:
             ls2.set_values((T_ls - Tg) / Tg)
 
-            solid_u = compute_interpolate_on(mfls, solid, mfu.basic_dof_nodes())
-            compute_convect(mfu, D, mfu, U, ins.dt, 100)
-            D += ins.dt/BDF0 * U * solid_u
+            Previous_d = d_init
+            md.disable_variable('u')
+            md.disable_variable('p')
+            md.disable_variable('t')
+            md.enable_variable('d')
+
+            md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
+
+            D = ones_d * 0
+            D[eval(ind_u)] = md.variable('d')
 
             if np.max(T) <= Tg:
                 d_ls2 = np.ones(x_grid.shape) * (-2 * np.max([ins.L_x, ins.L_y]))
@@ -881,8 +904,18 @@ if not ins.restart:
                                          method='nearest').flatten()
             D_ext = D_ext_x
             D_ext[1::2] = D_ext_y[1::2]
-            D[solid_u<1] = D_ext[solid_u<1]
-            Previous_d = ones_u * D
+            D[(Previous_Ls>=0)&(Ls1<=0)] = D_ext[(Previous_Ls>=0)&(Ls1<=0)]
+
+            md.enable_variable('u')
+            md.enable_variable('p')
+            md.enable_variable('t')
+            md.disable_variable('d')
+        else:
+            Previous_d = d_init
+            D = d_init
+    else:
+        Previous_d = d_init
+        D = d_init
 
     if ins.vtk:
         u = md.variable('u')
@@ -1094,6 +1127,8 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
     if ins.free_surface:
         # construct extension velocities
         # speed on the interface is U.Grad(Psi)
+        Ls1 = md.variable('ls1')
+        Previous_Ls = md.variable('ls1')
         Grad_Ls = compute_gradient(mfls, Ls1, mfls)
         Grad_mag = np.sqrt(Grad_Ls[0, :] ** 2 + Grad_Ls[1, :] ** 2)
         Grad_Ls[:, Grad_mag > 0] = Grad_Ls[:, Grad_mag > 0] / Grad_mag[Grad_mag > 0]
@@ -1139,13 +1174,15 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
         if ins.solidification:
             ls2.set_values((T_ls - Tg) / Tg)
 
-            Previous2_d = Previous_d
-            Previous_d = D
-            D = - BDF2 / BDF0 * Previous2_d - BDF1 / BDF0 * Previous_d
+            md.disable_variable('u')
+            md.disable_variable('p')
+            md.disable_variable('t')
+            md.enable_variable('d')
 
-            solid_u = compute_interpolate_on(mfls, solid, mfu.basic_dof_nodes())
-            compute_convect(mfu, D, mfu, U, ins.dt, 100)
-            D += ins.dt/BDF0 * U/BDF0 * solid_u
+            md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
+
+            D = ones_d * 0
+            D[eval(ind_u)] = md.variable('d')
 
             if np.max(T) <= Tg:
                 d_ls2 = np.ones(x_grid.shape) * (-2 * np.max([ins.L_x, ins.L_y]))
@@ -1172,7 +1209,19 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
                                          method='nearest').flatten()
             D_ext = D_ext_x
             D_ext[1::2] = D_ext_y[1::2]
-            D[solid_u<1] = D_ext[solid_u<1]
+            D[(Previous_Ls>=0)&(Ls1<=0)] = D_ext[(Previous_Ls>=0)&(Ls1<=0)]
+
+            md.enable_variable('u')
+            md.enable_variable('p')
+            md.enable_variable('t')
+            md.disable_variable('d')
+
+        else:
+            Previous_d = d_init
+            D = d_init
+    else:
+        Previous_d = d_init
+        D = d_init
 
     if ((i + 1) % ins.noutput == 0) or (np.abs(ti-ins.tf)<ins.dt):
         print('Time = %g' % ti)
