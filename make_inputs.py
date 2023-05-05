@@ -18,10 +18,11 @@ dictionary = {
     "p_k": 1,
     "t_k": 2,
     "ls_k": 1,
+    "nmat": 1,
 
     # initial free surface level set
     "free_surface": True,
-    "ls1p": "(((x-0.25)*(x-0.25)+(y-0.25)*(y-0.25))-(0.05*0.05))", # String using x,y,and z in m
+    "ls1p": "0.05*cos(2*3.1416*x/0.5*2+3.1416/2) + (y-0.25)", # String using x,y,and z in m
     "ls1s": None,
 
     # initial temperature level set
@@ -30,8 +31,8 @@ dictionary = {
 
     # topography level set
     "topography": False,
-    "solve_topography": False,
-    "ls3p": "y+0.75",
+    "solve_topography": True,
+    "ls3p": "y-0.25",
     "ls3s": None,
 
     # Pressure
@@ -39,7 +40,7 @@ dictionary = {
     "steady": True,
     "p_atm": 15000, # atmospheric pressure (Pa)
     "rho1": 2500, # density where ls1p<0 (lava) (kg/m3)
-    "rho2": 2000, # density where ls1p>0 (air) (kg/m3)
+    "rho2": 1, # density where ls1p>0 (air) (kg/m3)
     "rho3": 3000, # density where ls3p<0 (ground) (kg/m3)
 
     "beta1": 1e-10, # compressibility (1/Pa)
@@ -47,8 +48,8 @@ dictionary = {
     "beta3": 1e-10,
 
     # Temperature
-    "temp": True,
-    "solidification": True,
+    "temp": False,
+    "solidification": False,
     "T0": 100, # lava temperature (deg C)
     "T_init": None, # initial temperature field, None sets initial lava temperature to T0
     "T_atm": 100, # initial atmospheric temperature (deg C)
@@ -64,12 +65,12 @@ dictionary = {
 
     # Viscosity
     "eta_exp": "exp(vfta + vftb/(T + 273 - vftc))", # (Pas)
-    "vfta": np.log(1e6),
+    "vfta": np.log(1e2),
     "vftb": 0.0,
     "vftc": 0.0,
     "Tg": 500, # (deg C)
     "max_eta": 1e7, # (Pas)
-    "eta2": 100, # (Pas)
+    "eta2": 1, # (Pas)
     "eta3": 1e7,
 
     # Elastic properties
@@ -125,17 +126,18 @@ dictionary = {
     "basal_flux": None, # in W/m2 or 'conduction'
 
     # time discretization
-    "tf": 5, # final time in s
-    "dt": 0.1, # time step in s
+    "tf": 0.5, # final time in s
+    "dt": 0.001, # time step in s
     "restart": False,
 
     # Solve options
     "stab_p": None, # None, SUPG for pressure stabilization
     "stab_t": 'GLS', # None, SUPG, or GLS for temp stabilization
     "solve_air": True, # turn to false to neglect velocity solution in fluid 2
+    "visc_coeff": 0.01, # coefficient for viscous relaxation of free surface where interface velocity F = (1 - visc_coeff*curvature)
 
     # output options
-    "outfile": './Results/falling_sphere_visc_solid',
+    "outfile": './Results/surface_relaxation_2',
     "noutput": 1, # number of timesteps between output
     "vtk": True,
     "viz": 'basic_viz.py',
