@@ -22,7 +22,7 @@ dictionary = {
 
     # initial free surface level set
     "free_surface": True,
-    "ls1p": "0.05*cos(2*3.1416*x/0.5*2+3.1416/2) + (y-0.25)", # String using x,y,and z in m
+    "ls1p": "(x - 0.25)*(x - 0.25) + (y - 0.25)*(y - 0.25) - 0.1*0.1", # String using x,y,and z in m
     "ls1s": None,
 
     # initial temperature level set
@@ -30,7 +30,7 @@ dictionary = {
     "ls2s": None,
 
     # topography level set
-    "topography": False,
+    "topography": True,
     "solve_topography": True,
     "ls3p": "y-0.25",
     "ls3s": None,
@@ -126,23 +126,32 @@ dictionary = {
     "basal_flux": None, # in W/m2 or 'conduction'
 
     # time discretization
-    "tf": 0.5, # final time in s
-    "dt": 0.001, # time step in s
+    "tf": 10, # final time in s
+    "dt": 0.01, # time step in s
     "restart": False,
 
     # Solve options
     "stab_p": None, # None, SUPG for pressure stabilization
     "stab_t": 'GLS', # None, SUPG, or GLS for temp stabilization
     "solve_air": True, # turn to false to neglect velocity solution in fluid 2
-    "visc_coeff": 0.01, # coefficient for viscous relaxation of free surface where interface velocity F = (1 - visc_coeff*curvature)
+    "visc_coeff": 0.0001, # coefficient for viscous relaxation of free surface where interface velocity F = (1 - visc_coeff*curvature)
+    "epsilon_psi": 1e-5,
 
     # output options
-    "outfile": './Results/surface_relaxation_2',
+    "outfile": './Results/spreading_drop_iso',
     "noutput": 1, # number of timesteps between output
     "vtk": True,
     "viz": 'basic_viz.py',
     "plots": True,
-    "plot_mesh": False}
+    "plot_mesh": False,
+
+    # true solutions
+    "true_p": False,
+    "true_u": False,
+    "true_d": False,
+    "true_ls1": False,
+    "true_t":False,
+    "true_ls2": False}
 
 try:
     os.listdir('./' + dictionary["outfile"])

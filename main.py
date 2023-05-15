@@ -11,7 +11,7 @@ import skfmm
 import getfem as gf
 from getfem import *
 
-outfile = './Results/surface_relaxation_2'
+outfile = './Results/spreading_drop_iso'
 
 # import simulation parameters
 with open(outfile + '/' + outfile.split('/')[-1] + '.json', 'r') as openfile:
@@ -33,10 +33,10 @@ try:
 except Exception as e:
     ins.visc_coeff = 0.01
 
-dx = ins.L_x/(ins.nx*ins.ls_k)
-dy = ins.L_y/(ins.ny*ins.ls_k)
-xs = np.linspace(0, ins.L_x, ins.nx*ins.ls_k+1)
-ys = np.linspace(0, ins.L_y, ins.ny*ins.ls_k+1)
+dx = ins.L_x/(ins.nx*(ins.ls_k))
+dy = ins.L_y/(ins.ny*(ins.ls_k))
+xs = np.linspace(0, ins.L_x, ins.nx*(ins.ls_k)+1)
+ys = np.linspace(0, ins.L_y, ins.ny*(ins.ls_k)+1)
 x_grid, y_grid = np.meshgrid(xs, ys)
 
 if (type(ins.Tg) is float) or (type(ins.Tg) is int):
@@ -100,6 +100,8 @@ if ins.ndim == 2:
     fb_right = mesh.outer_faces_with_direction([1., 0.], 0.01)  # boundary 2
     fb_top = mesh.outer_faces_with_direction([0., 1.], 0.01)  # boundary 3
     fb_bottom = mesh.outer_faces_with_direction([0., -1.], 0.01)  # boundary 4
+    fb_bottomleft = mesh.faces_from_cvid(mesh.convexes_in_box((-dx, -dy),
+                                                          (dx, dy)))
 
     if ins.influx:
         fb_influx = mesh.faces_from_cvid(mesh.convexes_in_box((ins.influx_left, ins.influx_bottom),
@@ -114,8 +116,10 @@ for i, bound in enumerate(bounds):
     else:
         bounds_type = np.append(bounds_type, type(eval('ins.' + bound + '_ux')))
 
+mesh.set_region(5, eval('fb_bottomleft'))
+
 if ins.influx:
-    mesh.set_region(i + 2, fb_influx)
+    mesh.set_region(6, fb_influx)
 
 if ins.vtk:
     # export to vtk for visualization through python
@@ -274,15 +278,23 @@ mfp.set_classical_fem(ins.p_k)  # continuous piecewise linear
 
 mfls = gf.MeshFem(mesh, 1)
 mfls.set_classical_fem(ins.ls_k)
+mff = gf.MeshFem(mesh, 2)
+mff.set_classical_fem(ins.ls_k)
+
+#mflss = gf.MeshFem(mesh, 1)
+#mflss.set_classical_fem(ins.ls_k+1)
 
 mfmat = gf.MeshFem(mesh,1)
 mfmat.set_classical_fem(ins.nmat)
 
-mflsgrad = gf.MeshFem(mesh,1)
-mflsgrad.set_classical_discontinuous_fem(ins.ls_k-1)
+#mflsgrad = gf.MeshFem(mesh,1)
+#mflsgrad.set_classical_discontinuous_fem(ins.ls_k-1)
 
-mflsgrad2 = gf.MeshFem(mesh,1)
-mflsgrad2.set_classical_discontinuous_fem(np.max([ins.ls_k-2,0]))
+#mflssgrad = gf.MeshFem(mesh,1)
+#mflssgrad.set_classical_discontinuous_fem(ins.ls_k)
+
+#mflssgrad2 = gf.MeshFem(mesh,1)
+#mflssgrad2.set_classical_discontinuous_fem(np.max([ins.ls_k-1,0]))
 
 # temperature
 if ins.temp:
@@ -330,14 +342,21 @@ y_ls = D_ls[1, :]
 if ins.ndim == 2:
     edges_ls = np.where((x_ls < dx) | (x_ls > (ins.L_x - dx)) | (y_ls < dy) | (y_ls > (ins.L_y - dy)))
 
+D_f = mff.basic_dof_nodes()
+ones_f = np.ones(D_f.shape[1])
+
 D_mat = mfmat.basic_dof_nodes()
 ones_mat = np.ones(D_mat.shape[1])
 
-D_lsgrad = mflsgrad.basic_dof_nodes()
-ones_lsgrad = np.ones(D_lsgrad.shape[1])
+#D_lsgrad = mflsgrad.basic_dof_nodes()
+#ones_lsgrad = np.ones(D_lsgrad.shape[1])
+#x_lsgrad = D_lsgrad[0, :]
+#y_lsgrad = D_lsgrad[1, :]
+#if ins.ndim == 2:
+#    edges_lsgrad = np.where((x_lsgrad <= dx) | (x_lsgrad >= (ins.L_x - dx)) | (y_lsgrad <= dy) | (y_lsgrad >= (ins.L_y - dy)))
 
-D_lsgrad2 = mflsgrad2.basic_dof_nodes()
-ones_lsgrad2 = np.ones(D_lsgrad2.shape[1])
+#D_lsgrad2 = mflssgrad2.basic_dof_nodes()
+#ones_lsgrad2 = np.ones(D_lsgrad2.shape[1])
 
 if ins.temp:
     D_t = mft.basic_dof_nodes()
@@ -349,13 +368,13 @@ if ins.free_surface:
     Ls1 = ls1.values(0)
 
     # force to signed distance function
-    Ls_ext = sciinterp.griddata(D_ls.transpose(), Ls1,
-                                np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='nearest')
-    Ls1 = skfmm.distance(Ls_ext.reshape((x_grid.shape)), dx=[dy, dx]).flatten()
-    Ls1 = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), Ls1,
-                             D_ls.transpose(), method='nearest')
-    ls1.set_values(Ls1)
-    mls.adapt()
+    #Ls_ext = sciinterp.griddata(D_ls.transpose(), Ls1,
+    #                            np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='nearest')
+    #Ls1 = skfmm.distance(Ls_ext.reshape((x_grid.shape)), dx=[dy, dx]).flatten()
+    #Ls1 = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), Ls1,
+    #                         D_ls.transpose(), method='nearest')
+    #ls1.set_values(Ls1)
+    #mls.adapt()
     # mim.adapt()
 
     if ins.plots:
@@ -412,7 +431,7 @@ else:
     md.add_initialized_fem_data('Previous_psi', mfls, ls1.values(0))
     md.add_initialized_fem_data('Previous2_psi', mfls, ls1.values(0))
 
-md.add_initialized_fem_data('fext',mflsgrad,0*ones_lsgrad)
+md.add_initialized_fem_data('fext',mff,0*ones_f)
 
 # Density
 if ins.free_surface:
@@ -566,6 +585,8 @@ else:
         md.add_fem_variable('t', mft)
 
 md.add_fem_variable('psi',mfls)
+md.add_fem_variable('psis',mfls)
+md.add_initialized_data('psie',ins.epsilon_psi)
 
 md_init.add_fem_variable('u', mfu)
 md_init.add_fem_variable('p', mfp)
@@ -608,15 +629,20 @@ md.add_nonlinear_term(mim, linear_elastic)
 #md.add_nonlinear_term(mim, linear_elastic_adv)
 
 if ins.free_surface:
+
+    md.add_nonlinear_term(mim,"psis*Test_psis + psie*Grad_psis.Grad_Test_psis")
+    md.add_source_term_brick(mim,'psis','Previous_psi')
+
     time_int_psi = "((BDF0*psi+BDF1*Previous_psi+BDF2*Previous2_psi)/dt)"
-    advection_psi = "((fext*Grad_psi).Grad_psi)*Test_psi"
+    advection_psi = "(fext:Grad_psi)*Test_psi"
     md.add_nonlinear_term(mim, time_int_psi + '*Test_psi')
     md.add_nonlinear_term(mim, advection_psi)
-    tau_SUPG_psi = "1/(2/dt + 2*Norm((fext*Grad_psi))/h)"
-    S_SUPG_psi = "((fext*Grad_psi).Grad_psi)*((fext*Grad_psi).Grad_Test_psi)"
+    #tau_SUPG_psi = "1/(2/dt + 2*Norm((fext*Grad_psi))/h)"
+    #S_SUPG_psi = "((fext*Grad_psi).Grad_psi)*((fext*Grad_psi).Grad_Test_psi)"
 
     #md.add_nonlinear_term(mim, tau_SUPG_psi + '*((fext*Grad_psi).Grad_Test_psi)*' + time_int_psi)
     #md.add_nonlinear_term(mim, tau_SUPG_psi + '*' + S_SUPG_psi)
+md.disable_variable('psis')
 md.disable_variable('psi')
 
 
@@ -745,16 +771,17 @@ for i, bound in enumerate(bounds):
 md.add_initialized_fem_data('patm', mfp, [ins.p_atm * ones_p])
 md_init.add_initialized_fem_data('patm', mfp, [ins.p_atm * ones_p])
 if ins.solve_air | (not ins.free_surface):
-    md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 3, dataname='patm')
-    md_init.add_Dirichlet_condition_with_multipliers(mim_all, 'p', 1, 3, dataname='patm')
+    md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 5, dataname='patm')
+    md_init.add_Dirichlet_condition_with_multipliers(mim_all, 'p', 1, 5, dataname='patm')
 
 else:
     md.add_Dirichlet_condition_with_multipliers(mim_surf, 'p', 1, -1, dataname='patm')
     md_init.add_Dirichlet_condition_with_multipliers(mim_surf, 'p', 1, -1, dataname='patm')
 
 #if ins.free_surface:
-    #for i, bound in enumerate(bounds):
-        #md.add_Dirichlet_condition_with_multipliers(mim,'psi',1,i+1,dataname='Previous_psi')
+#    md.add_initialized_fem_data('psis_bound',mfls,[Ls1])
+#    for i, bound in enumerate(bounds):
+#        md.add_Dirichlet_condition_with_multipliers(mim,'psis',1,i+1,dataname='psis_bound')
 
 if ins.topography:
     if 'no_slip' in ins.basal_velocity:
@@ -833,18 +860,18 @@ if ins.temp:
 # influx
 if ins.influx:
     md.add_initialized_fem_data('influxdata', mfp, [eval(ins.influx_ux) * ones_p, eval(ins.influx_uy) * ones_p])
-    md.add_Dirichlet_condition_with_multipliers(mim, 'u', 2, 5,
+    md.add_Dirichlet_condition_with_multipliers(mim, 'u', 2, 6,
                                                 dataname='influxdata')
     if ins.temp:
         md.add_initialized_fem_data('influxdata_t', mft, [eval(ins.influx_T) * ones_t])
-        md.add_Dirichlet_condition_with_multipliers(mim, 't', 2, 5,
+        md.add_Dirichlet_condition_with_multipliers(mim, 't', 2, 6,
                                                     dataname='influxdata_t')
 
 #### Solve ####
 print('Starting solve')
 if not ins.restart:
     # initialize pressure and velocity with incompressible, steady stokes
-    md_init.solve('max_res', 1E-8, 'max_iter', 10, 'noisy')
+    md_init.solve('max_res', 1E-8, 'max_iter', 100, 'noisy')
     p_init = md_init.variable('p')
     u_init = md_init.variable('u')
 
@@ -858,7 +885,7 @@ if not ins.restart:
 
     print('time = 0')
     # bootstrap
-    md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
+    md.solve('max_res', 1E-10, 'max_iter', 100, 'noisy')
 
     md.disable_variable('u')
     md.disable_variable('p')
@@ -866,38 +893,125 @@ if not ins.restart:
         md.disable_variable('t')
 
     if ins.free_surface:
-        md.enable_variable('psi')
-        # Previous_ls = md.variable('Previous_ls')
+        md.enable_variable('psis')
+        md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
+        md.disable_variable('psis')
+        #Previous_ls = md.variable('Previous_ls')
 
         # construct extension velocities
         # speed on the interface is U.Grad(Psi)
-        Grad_Ls = compute_gradient(mfls, Ls1, mflsgrad)
-        Grad_mag = np.sqrt(Grad_Ls[0, :] ** 2 + Grad_Ls[1, :] ** 2)
-        Grad_mag[Grad_mag<1e-14] = 1e-14
-        Grad2_Ls = compute_gradient(mflsgrad,Grad_Ls,mflsgrad2)
-        Grad2_Ls = compute_interpolate_on(mflsgrad2,Grad2_Ls,mflsgrad)
-        curvature = (Grad2_Ls[0,0,:] * Grad_Ls[1,:]**2 - (Grad2_Ls[1,0,:] + Grad2_Ls[0,1,:]) * Grad_Ls[0,:] * Grad_Ls[1,:] + Grad2_Ls[1,1,:] * Grad_Ls[0,:]**2)/Grad_mag**3
+        #Grad_psi = compute_gradient(mfls, md.variable('Previous_psi'), mflsgrad)
+        #Grad_psis = compute_gradient(mflss, md.variable('psis'), mflssgrad)
+        #Grad2_psis = compute_gradient(mflssgrad, Grad_psis, mflssgrad2)
+
+        #Grad_psis_lsgrad = compute_interpolate_on(mflssgrad, Grad_psis, mflsgrad)
+        #Grad_mag = np.sqrt(Grad_psis_lsgrad[0, :] ** 2 + Grad_psis_lsgrad[1, :] ** 2)
+        #Grad_mag[Grad_mag<1e-14] = 1e-14
+
+        #Grad2_psis_lsgrad = compute_interpolate_on(mflssgrad2,Grad2_psis,mflsgrad)
+        #curvature = (Grad2_psis_lsgrad[0,0,:] * Grad_psis_lsgrad[1,:]**2 - (Grad2_psis_lsgrad[1,0,:] + Grad2_psis_lsgrad[0,1,:]) * Grad_psis_lsgrad[0,:] * Grad_psis_lsgrad[1,:] + Grad2_psis_lsgrad[1,1,:] * Grad_psis_lsgrad[0,:]**2)/Grad_mag**3
+        #curvature[edges_lsgrad] = 0
+
+        Psi_grid = sciinterp.griddata(D_ls.transpose(), md.variable('psis'),
+                                   np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='linear').reshape(x_grid.shape)
+
+        dx_Psi_grid = np.zeros_like(Psi_grid)
+        dx_Psi_grid[:, 1:-1] = (Psi_grid[:, 2:] - Psi_grid[:, :-2]) / (2 * dx)
+        dx_Psi_grid[:, 0] = (Psi_grid[:, 1] - Psi_grid[:, 0]) / dx
+        dx_Psi_grid[:, -1] = (Psi_grid[:, -1] - Psi_grid[:, -2]) / dx
+        
+        dy_Psi_grid = np.zeros_like(Psi_grid)
+        dy_Psi_grid[1:-1,:] = (Psi_grid[2:,:]  - Psi_grid[:-2,:]) / (2*dy)
+        dy_Psi_grid[0, :]   = (Psi_grid[1, :]  - Psi_grid[0, :])  / dy
+        dy_Psi_grid[-1, :]  = (Psi_grid[-1, :] - Psi_grid[-2, :]) / dy
+
+        mag_grad_Psi_grid = np.sqrt(dx_Psi_grid**2 + dy_Psi_grid**2)
+        mag_grad_Psi_grid[mag_grad_Psi_grid < 1e-14] = 1e-14
+
+        dxx_Psi_grid = np.zeros_like(Psi_grid)
+        dxx_Psi_grid[:, 1:-1] = (Psi_grid[:, 2:] - 2 * Psi_grid[:, 1:-1] + Psi_grid[:, :-2]) / (dx ** 2)
+        dxx_Psi_grid[:, 0] = dxx_Psi_grid[:, 1]
+        dxx_Psi_grid[:, -1] = dxx_Psi_grid[:, -2]
+
+        dyy_Psi_grid = np.zeros_like(Psi_grid)
+        dyy_Psi_grid[1:-1, :] = (Psi_grid[2:, :] -2*Psi_grid[1:-1, :] + Psi_grid[:-2, :]) / (dy ** 2)
+        dyy_Psi_grid[0, :]    = dyy_Psi_grid[1, :]
+        dyy_Psi_grid[-1, :]   = dyy_Psi_grid[-2, :]
+
+        dxy_Psi_grid = np.zeros_like(Psi_grid)
+        dxy_Psi_grid[1:-1,1:-1] = (Psi_grid[2:, 2:] - Psi_grid[2:, :-2] - Psi_grid[:-2, 2:] + Psi_grid[:-2,:-2]) / (4*dx*dy)
+        dxy_Psi_grid[0, 1:-1] = (Psi_grid[1, 2:] - Psi_grid[1, :-2] - Psi_grid[0, 2:] + Psi_grid[0, :-2]) / (2*dx*dy)
+        dxy_Psi_grid[-1, 1:-1] = (Psi_grid[-1, 2:] - Psi_grid[-1, :-2] - Psi_grid[-2, 2:] + Psi_grid[-2, :-2]) / (2*dx*dy)
+        dxy_Psi_grid[1:-1, 0] = (Psi_grid[2:, 1] - Psi_grid[2:, 1] - Psi_grid[:-2, 0] + Psi_grid[:-2, 0]) / (2*dx*dy)
+        dxy_Psi_grid[1:-1, -1] = (Psi_grid[2:, -1] - Psi_grid[2:, -1] - Psi_grid[:-2, -2] + Psi_grid[:-2, -2]) / (2*dx*dy)
+        dxy_Psi_grid[0, 0] = (Psi_grid[1, 1] - Psi_grid[1, 0] - Psi_grid[0, 1] + Psi_grid[0, 0]) / (dx*dy)
+        dxy_Psi_grid[0, -1] = (Psi_grid[1, -1] - Psi_grid[1, -2] - Psi_grid[0, -1] + Psi_grid[0, -2]) / (dx * dy)
+        dxy_Psi_grid[-1, 0] = (Psi_grid[-1, 1] - Psi_grid[-1, 0] - Psi_grid[-2, 1] + Psi_grid[-2, 0]) / (dx * dy)
+        dxy_Psi_grid[-1, -1] = (Psi_grid[-1, -1] - Psi_grid[-1, -2] - Psi_grid[-2, -1] + Psi_grid[-2, -2]) / (dx * dy)
+
+        curvature = (dxx_Psi_grid * (dy_Psi_grid ** 2) - 2*(dx_Psi_grid * dy_Psi_grid * dxy_Psi_grid) + dyy_Psi_grid * (dx_Psi_grid)**2)/(mag_grad_Psi_grid**3)
 
         if ins.free_surface | ins.topography:
-            u_lsgrad = compute_interpolate_on(mfu_cut,md.variable('u'),mflsgrad)
+            u_ls = compute_interpolate_on(mfu_cut,md.variable('u'),mfls)
+
         else:
-            u_lsgrad = compute_interpolate_on(mfu,md.variable('u'),mflsgrad)
+            u_ls = compute_interpolate_on(mfu,md.variable('u'),mfls)
 
-        F_ext = sciinterp.griddata(D_lsgrad.transpose(), (u_lsgrad[0,:] * Grad_Ls[0, :] + u_lsgrad[1,:] * Grad_Ls[1, :])*(1 - ins.visc_coeff*curvature),
-                                   np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='nearest')
-        Ls_ext = sciinterp.griddata(D_lsgrad.transpose(), compute_interpolate_on(mfls,Ls1,mflsgrad),
-                                    np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='nearest')
+        ux_grid = sciinterp.griddata(D_ls.transpose(), u_ls[0, :],
+                                     np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                                     method='linear')
+        uy_grid = sciinterp.griddata(D_ls.transpose(), u_ls[1, :],
+                                     np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                                     method='linear')
 
-        d_ls1, F_ext = skfmm.extension_velocities(Ls_ext.reshape(x_grid.shape),
-                                              F_ext.reshape(x_grid.shape),
-                                              dx=[dy, dx])
-        F_ext = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), F_ext.flatten(),
-                                   D_lsgrad.transpose(),
+        F_grid = (ux_grid * dx_Psi_grid.flatten() + uy_grid * dy_Psi_grid.flatten())
+
+        #eta_ls = compute_interpolate_on(mfmat,eta,mflsgrad)
+        #relax_max = 0.1 * (np.max(np.sqrt(f_xi ** 2 + f_yi ** 2)) - np.min(np.sqrt(f_xi ** 2 + f_yi ** 2)))/eta_ls * np.sqrt(dx ** 2 + dy ** 2)
+        relax_max = np.sqrt(dx**2 + dy**2)/(2*ins.dt)
+        #Fmax = np.min([0.5*np.abs(F), relax_max * ones_lsgrad], axis=0)
+        #Fmin = np.max([-0.5*np.abs(F), -relax_max * ones_lsgrad], axis=0)
+
+        relax_speed = ins.visc_coeff * curvature
+
+        relax_speed[relax_speed > relax_max] = relax_max
+        relax_speed[relax_speed < -relax_max] = -relax_max
+
+        if ins.topography:
+            ls3_grid = sciinterp.griddata(D_ls.transpose(), ls3.values(0),
+                                   np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='linear').reshape(x_grid.shape)
+            relax_speed[ls3_grid<0] = 0
+
+        mask_grid = (Psi_grid>0)
+        d_ls1, F_ext_grid = skfmm.extension_velocities(sciinterp.griddata(D_ls.transpose(), md.variable('psis'),
+                                   np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='linear').reshape(x_grid.shape),
+                                              F_grid.reshape(x_grid.shape) - relax_speed,
+                                              dx=[dy, dx],ext_mask=mask_grid)
+        F_ext = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), F_ext_grid.flatten(),
+                                   D_ls.transpose(),
                                    method='nearest').flatten()
+        dx_Psi = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), dx_Psi_grid.flatten(),
+                                   D_ls.transpose(),
+                                   method='nearest').flatten()
+        dy_Psi = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), dy_Psi_grid.flatten(),
+                                    D_ls.transpose(),
+                                    method='nearest').flatten()
+        mag_grad_Psi = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), mag_grad_Psi_grid.flatten(),
+                                    D_ls.transpose(),
+                                    method='nearest').flatten()
+
+        fext = 0*ones_f
+        fext[::2] = F_ext*dx_Psi/mag_grad_Psi
+        fext[1::2] = F_ext*dy_Psi/mag_grad_Psi
         #d = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), d.flatten(), D_ls.transpose(),
         #                       method='nearest').flatten()
 
-        md.set_variable('fext',F_ext)
+        md.set_variable('fext',fext)
+        #md.set_variable('psis_bound', md.variable('Previous_psi') + compute_interpolate_on(mflsgrad,
+        #                                    (F_ext*Grad_psi)[0,:]*Grad_psi[0,:] + (F_ext*Grad_psi)[1,:]*Grad_psi[1,:],
+        #                                                                                   mfls)*ins.dt)
+
+        md.enable_variable('psi')
         md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
         Previous_Ls = Ls1
         Ls1 = md.variable('psi')
@@ -973,36 +1087,73 @@ if not ins.restart:
         u = md.variable('u')
         P = md.variable('p')
 
+        ti = 0;
+
         mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + '0'*ndigits + '.vtk', u_init)
+        if ins.true_u:
+            mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_utrue_' + '0' * ndigits + '.vtk', eval(ins.true_u))
         mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + '0'*ndigits + '.vtk', p_init)
+        if ins.true_p:
+            mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ptrue_' + '0' * ndigits + '.vtk', eval(ins.true_p))
         if ins.free_surface:
             mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + '0'*ndigits + '.vtk', Ls1)
-            mflsgrad.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Fext_' + '0'*ndigits + '.vtk', F_ext)
-            mflsgrad.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_curvature_' + '0'*ndigits + '.vtk', curvature)
+            if ins.true_ls1:
+                mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1true_' + '0' * ndigits + '.vtk',
+                                  eval(ins.true_ls1))
+            mff.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Fext_' + '0'*ndigits + '.vtk', fext)
+            mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_curvature_' + '0'*ndigits + '.vtk',
+                               sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), curvature.flatten(),
+                                         D_ls.transpose(),
+                                         method='nearest'))
             mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_rho_' + '0' * ndigits + '.vtk', rho)
         if ins.temp:
             T = md.variable('t')
             mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_T_' + '0'*ndigits + '.vtk', T_init)
+            if ins.true_t:
+                mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ttrue_' + '0' * ndigits + '.vtk',
+                                  eval(ins.true_t))
             mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + '0'*ndigits + '.vtk', mu)
             if ins.solidification:
                 mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + '0'*ndigits + '.vtk', d_init)
+                if ins.true_d:
+                    mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_dtrue_' + '0' * ndigits + '.vtk',
+                                      eval(ins.true_d))
                 mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls2_' + '0' * ndigits + '.vtk', (T_init-Tg)/Tg)
         if (ins.noutput==1):
             numstr = str(ins.dt * 10 ** ndecimal).split('.')[0].zfill(ndigits)
 
             mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + numstr + '.vtk', U)
+            if ins.true_u:
+                mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_utrue_' + numstr + '.vtk',
+                                  eval(ins.true_u))
             mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + numstr + '.vtk', P)
+            if ins.true_p:
+                mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ptrue_' + numstr + '.vtk',
+                                  eval(ins.true_p))
             if ins.free_surface:
-                mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + numstr + '.vtk', Ls1)
-                mflsgrad.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Fext_' + numstr + '.vtk', F_ext)
-                mflsgrad.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_curvature_' + numstr + '.vtk', curvature)
+                mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + numstr + '.vtk', md.variable('Previous_psi'))
+                if ins.true_ls1:
+                    mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1true_' + numstr + '.vtk',
+                                      eval(ins.true_ls1))
+                mff.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Fext_' + numstr + '.vtk', fext)
+                mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_curvature_' + numstr + '.vtk',
+                                   sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                                                      curvature.flatten(),
+                                                      D_ls.transpose(),
+                                                      method='nearest'))
                 mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_rho_' + numstr + '.vtk', rho)
             if ins.temp:
                 T = md.variable('t')
                 mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_T_' + numstr + '.vtk', T)
+                if ins.true_u:
+                    mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ttrue_' + numstr + '.vtk',
+                                      eval(ins.true_t))
                 mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + numstr + '.vtk', mu)
                 if ins.solidification:
                     mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + numstr + '.vtk', D)
+                    if ins.true_d:
+                        mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_dtrue_' + numstr + '.vtk',
+                                          eval(ins.true_d))
                     mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls2_' + numstr + '.vtk',
                                       (T_init - Tg) / Tg)
 
@@ -1182,7 +1333,7 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
                 md.set_variable('basal_flux', [ins.kappa1 * (T - ins.basal_temp_i) / radii_t * ones_t])
 
     # Solve
-    md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
+    md.solve('max_res', 1E-10, 'max_iter', 100, 'noisy')
 
     md.disable_variable('u')
     md.disable_variable('p')
@@ -1190,48 +1341,137 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
         md.disable_variable('t')
 
     if ins.free_surface:
-        md.enable_variable('psi')
+        md.enable_variable('psis')
+        md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
+        md.disable_variable('psis')
+
         # construct extension velocities
         # speed on the interface is U.Grad(Psi)
         md.set_variable('Previous2_psi',Previous_Ls)
         md.set_variable('Previous_psi', Ls1)
-        Grad_Ls = compute_gradient(mfls, Ls1, mfmat)
-        Grad_mag = np.sqrt(Grad_Ls[0, :] ** 2 + Grad_Ls[1, :] ** 2)
-        Grad_mag[Grad_mag<1e-14] = 1e-14
+        #Grad_psi = compute_gradient(mfls, md.variable('psi'), mflsgrad)
+        #Grad_psis = compute_gradient(mflss, md.variable('psis'), mflssgrad)
+        #Grad2_psis = compute_gradient(mflssgrad, Grad_psis, mflssgrad2)
 
-        Grad_Ls = compute_gradient(mfls, Ls1, mflsgrad)
-        Grad_mag = np.sqrt(Grad_Ls[0, :] ** 2 + Grad_Ls[1, :] ** 2)
-        Grad_mag[Grad_mag < 1e-14] = 1e-14
-        Grad2_Ls = compute_gradient(mflsgrad, Grad_Ls, mflsgrad2)
-        Grad2_Ls = compute_interpolate_on(mflsgrad2,Grad2_Ls,mflsgrad)
-        curvature = (Grad2_Ls[0, 0, :] * Grad_Ls[1, :] ** 2 - (Grad2_Ls[1, 0, :] + Grad2_Ls[0, 1, :]) * Grad_Ls[0, :] * Grad_Ls[1, :] + Grad2_Ls[1,1,:] * Grad_Ls[0,:] ** 2) / Grad_mag ** 3
+        #Grad_psis_lsgrad = compute_interpolate_on(mflssgrad, Grad_psis, mflsgrad)
+        #Grad_mag = np.sqrt(Grad_psis_lsgrad[0, :] ** 2 + Grad_psis_lsgrad[1, :] ** 2)
+        #Grad_mag[Grad_mag<1e-14] = 1e-14
+
+        #Grad2_psis_lsgrad = compute_interpolate_on(mflssgrad2,Grad2_psis,mflsgrad)
+        #curvature = (Grad2_psis_lsgrad[0, 0, :] * Grad_psis_lsgrad[1, :] ** 2 - (Grad2_psis_lsgrad[1, 0, :] + Grad2_psis_lsgrad[0, 1, :]) * Grad_psis_lsgrad[0, :] * Grad_psis_lsgrad[1, :] + Grad2_psis_lsgrad[1,1,:] * Grad_psis_lsgrad[0,:] ** 2) / Grad_mag ** 3
+        #curvature[edges_lsgrad] = 0
+
+        Psi_grid = sciinterp.griddata(D_ls.transpose(), md.variable('psis'),
+                                      np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                                      method='linear').reshape(x_grid.shape)
+
+        dx_Psi_grid = np.zeros_like(Psi_grid)
+        dx_Psi_grid[:, 1:-1] = (Psi_grid[:, 2:] - Psi_grid[:, :-2]) / (2 * dx)
+        dx_Psi_grid[:, 0] = (Psi_grid[:, 1] - Psi_grid[:, 0]) / dx
+        dx_Psi_grid[:, -1] = (Psi_grid[:, -1] - Psi_grid[:, -2]) / dx
+        #dx_Psi_grid[:, 2:-2] = (-Psi_grid[:, 4:] + 8*Psi_grid[:, 3:-1] - 8*Psi_grid[:, 1:-3] + Psi_grid[:, :-4]) / (12 * dx)
+
+        dy_Psi_grid = np.zeros_like(Psi_grid)
+        dy_Psi_grid[1:-1, :] = (Psi_grid[2:, :] - Psi_grid[:-2, :]) / (2 * dy)
+        dy_Psi_grid[0, :] = (Psi_grid[1, :] - Psi_grid[0, :]) / dy
+        dy_Psi_grid[-1, :] = (Psi_grid[-1, :] - Psi_grid[-2, :]) / dy
+        #dy_Psi_grid[2:-2, :] = (-Psi_grid[4:, :] + 8*Psi_grid[3:-1, :] - 8*Psi_grid[1:-3, :] + Psi_grid[:-4, :]) / (12 * dy)
+
+        mag_grad_Psi_grid = np.sqrt(dx_Psi_grid ** 2 + dy_Psi_grid ** 2)
+        mag_grad_Psi_grid[mag_grad_Psi_grid < 1e-14] = 1e-14
+
+        dxx_Psi_grid = np.zeros_like(Psi_grid)
+        dxx_Psi_grid[:, 1:-1] = (Psi_grid[:, 2:] - 2 * Psi_grid[:, 1:-1] + Psi_grid[:, :-2]) / (dx ** 2)
+        dxx_Psi_grid[:, 0] = dxx_Psi_grid[:, 1]
+        dxx_Psi_grid[:, -1] = dxx_Psi_grid[:, -2]
+        #dxx_Psi_grid[:, 2:-2] = (-Psi_grid[:, 4:] + 16*Psi_grid[:, 3:-1] - 30*Psi_grid[:, 2:-2] + 16*Psi_grid[:, 1:-3] - Psi_grid[:, :-4]) / (12*dx ** 2)
+
+        dyy_Psi_grid = np.zeros_like(Psi_grid)
+        dyy_Psi_grid[1:-1, :] = (Psi_grid[2:, :] - 2 * Psi_grid[1:-1, :] + Psi_grid[:-2, :]) / (dy ** 2)
+        dyy_Psi_grid[0, :] = dyy_Psi_grid[1, :]
+        dyy_Psi_grid[-1, :] = dyy_Psi_grid[-2, :]
+        #dyy_Psi_grid[2:-2, :] = (-Psi_grid[4:, :] + 16*Psi_grid[3:-1, :] - 30 * Psi_grid[2:-2, :] + 16*Psi_grid[1:-3, :] - Psi_grid[:-4, :]) / (12*dy ** 2)
+
+        dxy_Psi_grid = np.zeros_like(Psi_grid)
+        dxy_Psi_grid[1:-1, 1:-1] = (Psi_grid[2:, 2:] - Psi_grid[2:, :-2] - Psi_grid[:-2, 2:] + Psi_grid[:-2, :-2]) / (
+                    4 * dx * dy)
+        dxy_Psi_grid[0, 1:-1] = (Psi_grid[1, 2:] - Psi_grid[1, :-2] - Psi_grid[0, 2:] + Psi_grid[0, :-2]) / (
+                    2 * dx * dy)
+        dxy_Psi_grid[-1, 1:-1] = (Psi_grid[-1, 2:] - Psi_grid[-1, :-2] - Psi_grid[-2, 2:] + Psi_grid[-2, :-2]) / (
+                    2 * dx * dy)
+        dxy_Psi_grid[1:-1, 0] = (Psi_grid[2:, 1] - Psi_grid[2:, 1] - Psi_grid[:-2, 0] + Psi_grid[:-2, 0]) / (
+                    2 * dx * dy)
+        dxy_Psi_grid[1:-1, -1] = (Psi_grid[2:, -1] - Psi_grid[2:, -1] - Psi_grid[:-2, -2] + Psi_grid[:-2, -2]) / (
+                    2 * dx * dy)
+        dxy_Psi_grid[0, 0] = (Psi_grid[1, 1] - Psi_grid[1, 0] - Psi_grid[0, 1] + Psi_grid[0, 0]) / (dx * dy)
+        dxy_Psi_grid[0, -1] = (Psi_grid[1, -1] - Psi_grid[1, -2] - Psi_grid[0, -1] + Psi_grid[0, -2]) / (dx * dy)
+        dxy_Psi_grid[-1, 0] = (Psi_grid[-1, 1] - Psi_grid[-1, 0] - Psi_grid[-2, 1] + Psi_grid[-2, 0]) / (dx * dy)
+        dxy_Psi_grid[-1, -1] = (Psi_grid[-1, -1] - Psi_grid[-1, -2] - Psi_grid[-2, -1] + Psi_grid[-2, -2]) / (dx * dy)
+
+        curvature = (dxx_Psi_grid * (dy_Psi_grid ** 2) - 2 * (
+                    dx_Psi_grid * dy_Psi_grid * dxy_Psi_grid) + dyy_Psi_grid * (dx_Psi_grid) ** 2) / (
+                                     mag_grad_Psi_grid ** 3)
 
         if ins.free_surface | ins.topography:
-            u_lsgrad = compute_interpolate_on(mfu_cut,md.variable('u'),mflsgrad)
+            u_ls = compute_interpolate_on(mfu_cut, md.variable('u'), mfls)
         else:
-            u_lsgrad = compute_interpolate_on(mfu,md.variable('u'),mflsgrad)
+            u_ls = compute_interpolate_on(mfu, md.variable('u'), mfls)
 
-        F_ext = sciinterp.griddata(D_lsgrad.transpose(), (u_lsgrad[0,:] * Grad_Ls[0, :] + u_lsgrad[1,:] * Grad_Ls[1, :]) * (1 - ins.visc_coeff*curvature),
-                                   np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                                   method='nearest', fill_value=0)
-        Ls_ext = sciinterp.griddata(D_lsgrad.transpose(), compute_interpolate_on(mfls,Ls1,mflsgrad),
-                                    np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                                    method='nearest', fill_value=1)
+        ux_grid = sciinterp.griddata(D_ls.transpose(), u_ls[0, :],
+                                     np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                                     method='linear')
+        uy_grid = sciinterp.griddata(D_ls.transpose(), u_ls[1, :],
+                                     np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                                     method='linear')
 
-        d_ls1, F_ext = skfmm.extension_velocities(Ls_ext.reshape(x_grid.shape), F_ext.reshape(x_grid.shape),
-                                              dx=[dy, dx])
-        F_ext = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), F_ext.flatten(),
-                                   D_lsgrad.transpose(),
+        F_grid = (ux_grid * dx_Psi_grid.flatten() + uy_grid * dy_Psi_grid.flatten())
+
+        # eta_ls = compute_interpolate_on(mfmat,eta,mflsgrad)
+        # relax_max = 0.1 * (np.max(np.sqrt(f_xi ** 2 + f_yi ** 2)) - np.min(np.sqrt(f_xi ** 2 + f_yi ** 2)))/eta_ls * np.sqrt(dx ** 2 + dy ** 2)
+        relax_max = np.sqrt(dx ** 2 + dy ** 2) / (2 * ins.dt)
+        # Fmax = np.min([0.5*np.abs(F), relax_max * ones_lsgrad], axis=0)
+        # Fmin = np.max([-0.5*np.abs(F), -relax_max * ones_lsgrad], axis=0)
+
+        relax_speed = ins.visc_coeff * curvature
+
+        relax_speed[relax_speed > relax_max] = relax_max
+        relax_speed[relax_speed < -relax_max] = -relax_max
+
+        if ins.topography:
+            ls3_grid = sciinterp.griddata(D_ls.transpose(), ls3.values(0),
+                                   np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='linear').reshape(x_grid.shape)
+            relax_speed[ls3_grid<0] = 0
+
+        mask_grid = (Psi_grid > 0)
+        d_ls1, F_ext_grid = skfmm.extension_velocities(sciinterp.griddata(D_ls.transpose(), md.variable('psis'),
+                                                                          np.array([x_grid.flatten(),
+                                                                                    y_grid.flatten()]).transpose(),
+                                                                          method='linear').reshape(x_grid.shape),
+                                                       F_grid.reshape(x_grid.shape) - relax_speed,
+                                                       dx=[dy, dx], ext_mask=mask_grid)
+
+        F_ext = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), F_ext_grid.flatten(),
+                                   D_ls.transpose(),
                                    method='nearest').flatten()
-        Previous_Ls_lsgrad = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), d_ls1.flatten(),
-                                   D_lsgrad.transpose(),
-                                   method='nearest').flatten()
-        #d = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), d.flatten(),
-        #                       D_ls.transpose(),
+        dx_Psi = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), dx_Psi_grid.flatten(),
+                                    D_ls.transpose(),
+                                    method='nearest').flatten()
+        dy_Psi = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), dy_Psi_grid.flatten(),
+                                    D_ls.transpose(),
+                                    method='nearest').flatten()
+        mag_grad_Psi = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                                          mag_grad_Psi_grid.flatten(),
+                                          D_ls.transpose(),
+                                          method='nearest').flatten()
+
+        fext = 0 * ones_f
+        fext[::2] = F_ext * dx_Psi / mag_grad_Psi
+        fext[1::2] = F_ext * dy_Psi / mag_grad_Psi
+        # d = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), d.flatten(), D_ls.transpose(),
         #                       method='nearest').flatten()
-        #Previous_Ls = compute_interpolate_on(mflsgrad,Previous_Ls_lsgrad,mfls)
-        #md.set_variable('Previous_psi',Previous_Ls)
-        md.set_variable('fext',F_ext)
+
+        md.set_variable('fext', fext)
+        md.enable_variable('psi')
         md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
         Previous_Ls = Ls1
         Ls1 = md.variable('psi')
@@ -1315,18 +1555,38 @@ for i, ti in enumerate(np.arange(tstart, ins.tf, ins.dt)):
             P = md.variable('p')
 
             mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + numstr + '.vtk', u)
+            if ins.true_u:
+                mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_utrue_' + numstr + '.vtk',
+                                  eval(ins.true_u))
             mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + numstr + '.vtk', P)
+            if ins.true_p:
+                mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ptrue_' + numstr + '.vtk',
+                                  eval(ins.true_p))
             if ins.free_surface:
-                mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + numstr + '.vtk', Ls1)
-                mflsgrad.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Fext_' + numstr + '.vtk', F_ext)
-                mflsgrad.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_curvature_' + numstr + '.vtk', curvature)
+                mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + numstr + '.vtk', md.variable('Previous_psi'))
+                if ins.true_ls1:
+                    mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1true_' + numstr + '.vtk',
+                                      eval(ins.true_ls1))
+                mff.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Fext_' + numstr + '.vtk', fext)
+                mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_curvature_' + numstr + '.vtk',
+                                   sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                                                      curvature.flatten(),
+                                                      D_ls.transpose(),
+                                                      method='nearest'))
                 mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_rho_' + numstr + '.vtk', rho)
             if ins.temp:
                 T = md.variable('t')
                 mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_T_' + numstr + '.vtk', T)
+                if ins.true_t:
+                    mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ttrue_' + numstr + '.vtk',
+                                      eval(ins.true_t))
                 mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + numstr + '.vtk', mu)
                 if ins.solidification:
                     mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + numstr + '.vtk', D)
+                    if ins.true_d:
+                        mfu.export_to_vtk(
+                            outfile + '/' + ins.outfile.split('/')[-1] + '_dtrue_' + numstr + '.vtk',
+                            eval(ins.true_d))
                     mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls2_' + numstr + '.vtk', (T-Tg)/Tg)
 
         hf = h5py.File(ins.outfile + '/' + ins.outfile.split('/')[-1] + '.h5','a')

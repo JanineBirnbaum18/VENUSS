@@ -38,7 +38,7 @@ max_u = np.nanmax(np.append(np.array([eval('ins.' + bound + '_ux') for bound in 
                             np.array([eval('ins.' + bound + '_uy') for bound in boundary],dtype=float)))
 min_u = np.nanmin(np.append(np.array([eval('ins.' + bound + '_ux') for bound in boundary],dtype=float),
                             np.array([eval('ins.' + bound + '_uy') for bound in boundary],dtype=float)))
-max_u = np.max([max_u,0.001])
+max_u = np.max([max_u,0.1])
 
 #### disable automatic camera reset on 'Show'
 paraview.simple._DisableFirstRenderCameraReset()
@@ -101,6 +101,14 @@ d_files    = []
 T_files    = []
 Ls2_files  = []
 
+utrue_files  = []
+Ptrue_files  = []
+dtrue_files  = []
+Ls1true_files  = []
+Ttrue_files  = []
+Ls2true_files  = []
+
+
 for file in os.listdir(outfile):
     if 'vtk' in file:
         if '_mu_' in file:
@@ -118,17 +126,44 @@ for file in os.listdir(outfile):
         if '_Ls2_' in file:
             Ls2_files.append(outfile + '/' + file)
 
+        # given solutions
+        if '_utrue_' in file:
+            utrue_files.append(outfile + '/' + file)
+        if '_Ptrue_' in file:
+            Ptrue_files.append(outfile + '/' + file)
+        if '_dtrue_' in file:
+            dtrue_files.append(outfile + '/' + file)
+        if '_Ls1true_' in file:
+            Ls1true_files.append(outfile + '/' + file)
+        if '_Ttrue_' in file:
+            Ttrue_files.append(outfile + '/' + file)
+        if '_Ls2true_' in file:
+            Ls2true_files.append(outfile + '/' + file)
+
 # create a new 'Legacy VTK Reader'
 P = LegacyVTKReader(FileNames=P_files,registrationName='P')
+if ins.true_u:
+    Ptrue = LegacyVTKReader(FileNames=Ptrue_files, registrationName='Ptrue')
 u = LegacyVTKReader(FileNames=u_files,registrationName='u')
+if ins.true_u:
+    utrue = LegacyVTKReader(FileNames=utrue_files, registrationName='utrue')
 if ins.free_surface:
     Ls1 = LegacyVTKReader(FileNames=Ls1_files, registrationName='Ls1')
+    if ins.true_ls1:
+        Ls1true = LegacyVTKReader(FileNames=Ls1true_files, registrationName='Ls1true')
+
 if ins.temp:
     mu = LegacyVTKReader(FileNames=mu_files,registrationName='mu')
     T = LegacyVTKReader(FileNames=T_files, registrationName='T')
+    if ins.true_t:
+        Ttrue = LegacyVTKReader(FileNames=Ttrue_files, registrationName='Ttrue')
     if ins.solidification:
         d = LegacyVTKReader(FileNames=d_files, registrationName='d')
+        if ins.true_d:
+            dtrue = LegacyVTKReader(FileNames=dtrue_files, registrationName='dtrue')
         Ls2 = LegacyVTKReader(FileNames=Ls2_files, registrationName='Ls2')
+        if ins.true_ls2:
+            Ls2true = LegacyVTKReader(FileNames=Ls2true_files, registrationName='Ls2true')
 
 # create a new 'Contour'
 if ins.free_surface:
@@ -136,6 +171,11 @@ if ins.free_surface:
     contour1.ContourBy = ['POINTS', 'dataset1']
     contour1.Isosurfaces = [0]
     contour1.PointMergeMethod = 'Uniform Binning'
+    if ins.true_ls1:
+        contour1 = Contour(Input=Ls1true, registrationName='True free surface')
+        contour1.ContourBy = ['POINTS', 'dataset1']
+        contour1.Isosurfaces = [0]
+        contour1.PointMergeMethod = 'Uniform Binning'
 
 if ins.temp & ins.solidification:
     contour2 = Contour(Input=T,registrationName='Tg')
