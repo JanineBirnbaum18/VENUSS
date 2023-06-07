@@ -51,5 +51,20 @@ def compute_mean_curvature(Psi_grid,Ls3_grid,curvature,eta_grid,dx,dy):
     weights = np.zeros_like(Psi_grid)
     weights[(np.abs(Psi_grid)<np.sqrt(dx**2 + dy**2))] = 1/eta_grid[(np.abs(Psi_grid)<np.sqrt(dx**2 + dy**2))]
     weights[(Ls3_grid)<np.sqrt(dx**2 + dy**2)] = 0
-    return np.sum(np.sum(curvature_ext*weights))/np.sum(np.sum(weights))
+    mean_curvature = np.sum(np.sum(curvature_ext*weights))/np.sum(np.sum(weights))
+    for i in [0,-1]:
+        if np.min(np.abs(eta_grid[i,:]))<(np.sqrt(dx**2 + dy**2)/2):
+            mean_curvature = 0
+        if np.min(np.abs(eta_grid[:,i]))<(np.sqrt(dx**2 + dy**2)/2):
+            mean_curvature = 0
+    return mean_curvature
 
+def compute_points(ls1_interface,pts,topography,dx,dy,ls3_interface=0):
+    if topography:
+        pts = pts[:, ((np.abs(ls1_interface) <= np.sqrt(dx ** 2 + dy ** 2) / 100) & (
+                ls3_interface >= -np.sqrt(dx ** 2 + dy ** 2) / 100)) | (
+                             (ls1_interface <= np.sqrt(dx ** 2 + dy ** 2) / 100) & (
+                             np.abs(ls3_interface) <= np.sqrt(dx ** 2 + dy ** 2) / 100))]
+    else:
+        pts = pts[:, (np.abs(ls1_interface) <= np.sqrt(dx ** 2 + dy ** 2) / 100)]
+    return pts

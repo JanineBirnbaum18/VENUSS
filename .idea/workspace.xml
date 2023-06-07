@@ -4,11 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ea928744-c24a-4ab9-9ab8-06d8270ee90f" name="Changes" comment="Try fem solve for displacement update">
-      <change beforePath="$PROJECT_DIR$/.idea/GetFem_breakouts.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/GetFem_breakouts.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+    <list default="true" id="ea928744-c24a-4ab9-9ab8-06d8270ee90f" name="Changes" comment="Add computation of error when given a true solution">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/breakouts.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/breakouts.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/curvature.py" beforeDir="false" afterPath="$PROJECT_DIR$/curvature.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/make_inputs.py" beforeDir="false" afterPath="$PROJECT_DIR$/make_inputs.py" afterDir="false" />
     </list>
@@ -72,7 +70,7 @@
     &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/birnb/Documents/GitHub/GetFem_breakouts&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/birnb/Documents/GitHub/GetFem_breakouts/main - Copy.py&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -144,7 +142,12 @@
       <workItem from="1681486998554" duration="57145000" />
       <workItem from="1682967981508" duration="23207000" />
       <workItem from="1683207806088" duration="236000" />
-      <workItem from="1683208045982" duration="26827000" />
+      <workItem from="1683208045982" duration="31788000" />
+      <workItem from="1683552989743" duration="35711000" />
+      <workItem from="1683899746727" duration="359000" />
+      <workItem from="1683900112417" duration="4125000" />
+      <workItem from="1683904526428" duration="130808000" />
+      <workItem from="1686078753704" duration="20481000" />
     </task>
     <task id="LOCAL-00001" summary="Move material properties to levelset mesh and add option for higher order level sets.">
       <created>1681332796515</created>
@@ -167,7 +170,28 @@
       <option name="project" value="LOCAL" />
       <updated>1682972574154</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="Major improvements to level set update, add curvature stabilization">
+      <created>1683316048361</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1683316048361</updated>
+    </task>
+    <task id="LOCAL-00005" summary="Implement stabilization of free surface based on curvature">
+      <created>1684173543750</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1684173543750</updated>
+    </task>
+    <task id="LOCAL-00006" summary="Add computation of error when given a true solution">
+      <created>1684440014411</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1684440014411</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -211,7 +235,10 @@
     <MESSAGE value="Move material properties to levelset mesh and add option for higher order level sets." />
     <MESSAGE value="Add advection of displacements" />
     <MESSAGE value="Try fem solve for displacement update" />
-    <option name="LAST_COMMIT_MESSAGE" value="Try fem solve for displacement update" />
+    <MESSAGE value="Major improvements to level set update, add curvature stabilization" />
+    <MESSAGE value="Implement stabilization of free surface based on curvature" />
+    <MESSAGE value="Add computation of error when given a true solution" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add computation of error when given a true solution" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -227,9 +254,12 @@
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/GetFem_breakouts$Getfem.coverage" NAME="Getfem Coverage Results" MODIFIED="1680038387082" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$USER_HOME$/anaconda3" />
     <SUITE FILE_PATH="coverage/GetFem_breakouts$T_u_and_d.coverage" NAME="T_u_and_d Coverage Results" MODIFIED="1680802836059" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/GetFem_breakouts$main.coverage" NAME="main Coverage Results" MODIFIED="1683315238721" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/GetFem_breakouts$curvature.coverage" NAME="curvature Coverage Results" MODIFIED="1684250424192" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/GetFem_breakouts$make_inputs_free_surface_relaxation.coverage" NAME="make_inputs_free_surface_relaxation Coverage Results" MODIFIED="1686147685876" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/GetFem_breakouts$main.coverage" NAME="main Coverage Results" MODIFIED="1686160167830" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/GetFem_breakouts$demo_laplacian.coverage" NAME="demo_laplacian Coverage Results" MODIFIED="1682446646819" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/GetFem_breakouts$basic_viz.coverage" NAME="basic_viz Coverage Results" MODIFIED="1683209415425" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/GetFem_breakouts$make_inputs.coverage" NAME="make_inputs Coverage Results" MODIFIED="1683315235902" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/GetFem_breakouts$files.coverage" NAME="files Coverage Results" MODIFIED="1683565123178" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$USER_HOME$/anaconda3/envs/Getfem_clone/Lib/site-packages/h5py/_hl" />
+    <SUITE FILE_PATH="coverage/GetFem_breakouts$basic_viz.coverage" NAME="basic_viz Coverage Results" MODIFIED="1683656265330" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/GetFem_breakouts$make_inputs.coverage" NAME="make_inputs Coverage Results" MODIFIED="1686147355737" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

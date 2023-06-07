@@ -22,6 +22,7 @@ dictionary = {
 
     # initial free surface level set
     "free_surface": True,
+    "solve_air": True,
     "ls1p": "(x - 0.25)*(x - 0.25) + (y - 0.25)*(y - 0.25) - 0.1*0.1", # String using x,y,and z in m
     "ls1s": None,
 
@@ -38,7 +39,7 @@ dictionary = {
     # Pressure
     "compressible": False,
     "steady": True,
-    "p_atm": 15000, # atmospheric pressure (Pa)
+    "p_atm": 0, # atmospheric pressure (Pa)
     "rho1": 2500, # density where ls1p<0 (lava) (kg/m3)
     "rho2": 1, # density where ls1p>0 (air) (kg/m3)
     "rho3": 3000, # density where ls3p<0 (ground) (kg/m3)
@@ -46,6 +47,8 @@ dictionary = {
     "beta1": 1e-10, # compressibility (1/Pa)
     "beta2": 1e-10,
     "beta3": 1e-10,
+
+    "surface_tension": 0.36, # surface tension in N/m
 
     # Temperature
     "temp": False,
@@ -81,12 +84,12 @@ dictionary = {
     "f_x": None, # body force (N/m3)
     "f_y": "-rho*9.81",
     "left_ux": 0, # Dirichlet velocity condition (m/s) as float,str,or None
-    "left_uy": 0,
-    "left_udx": None, # Neumann velocity condition (1/s)
+    "left_uy": None,
+    "left_udx": 0, # Neumann velocity condition (1/s)
     "left_udy": None,
     "right_ux": 0,
     "right_uy": 0,
-    "right_udx": None,
+    "right_udx": 0,
     "right_udy": None,
     "top_ux": 0,
     "top_uy": 0,
@@ -126,20 +129,20 @@ dictionary = {
     "basal_flux": None, # in W/m2 or 'conduction'
 
     # time discretization
-    "tf": 10, # final time in s
+    "tf": 2, # final time in s
     "dt": 0.01, # time step in s
     "restart": False,
 
     # Solve options
     "stab_p": None, # None, SUPG for pressure stabilization
     "stab_t": 'GLS', # None, SUPG, or GLS for temp stabilization
-    "solve_air": True, # turn to false to neglect velocity solution in fluid 2
-    "visc_coeff": 0.0001, # coefficient for viscous relaxation of free surface where interface velocity F = (1 - visc_coeff*curvature)
+    "visc_coeff": 0.01, # coefficient for viscous relaxation of free surface where interface velocity F = (1 - visc_coeff*curvature)
     "epsilon_psi": 1e-5,
 
     # output options
     "outfile": './Results/spreading_drop_iso',
     "noutput": 1, # number of timesteps between output
+    "ndigits": 4,
     "vtk": True,
     "viz": 'basic_viz.py',
     "plots": True,
