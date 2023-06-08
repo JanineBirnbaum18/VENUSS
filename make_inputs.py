@@ -150,7 +150,8 @@ dictionary = {
 
     # true solutions
     "true_p": False,
-    "true_u": False,
+    "true_ux": False,
+    "true_uy": False,
     "true_d": False,
     "true_ls1": False,
     "true_t":False,
