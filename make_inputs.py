@@ -129,15 +129,15 @@ dictionary = {
     "basal_flux": None, # in W/m2 or 'conduction'
 
     # time discretization
-    "tf": 2, # final time in s
-    "dt": 0.01, # time step in s
+    "tf": 0.5, # final time in s
+    "dt": 0.001, # time step in s
     "restart": False,
 
     # Solve options
     "stab_p": None, # None, SUPG for pressure stabilization
     "stab_t": 'GLS', # None, SUPG, or GLS for temp stabilization
-    "visc_coeff": 0.01, # coefficient for viscous relaxation of free surface where interface velocity F = (1 - visc_coeff*curvature)
-    "epsilon_psi": 1e-5,
+    "epsilon_psi": 0.01, # coefficient for viscous relaxation of free surface where interface velocity F = (1 - epsilon_psi*curvature)
+    "kappa_psi": 1e-5, # diffusion coefficient for curvature calculation
 
     # output options
     "outfile": './Results/spreading_drop_iso',
@@ -152,7 +152,8 @@ dictionary = {
     "true_p": False,
     "true_ux": False,
     "true_uy": False,
-    "true_d": False,
+    "true_dx": False,
+    "true_dy": False,
     "true_ls1": False,
     "true_t":False,
     "true_ls2": False}

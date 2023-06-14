@@ -142,10 +142,10 @@ for file in os.listdir(outfile):
 
 # create a new 'Legacy VTK Reader'
 P = LegacyVTKReader(FileNames=P_files,registrationName='P')
-if ins.true_u:
+if ins.true_P:
     Ptrue = LegacyVTKReader(FileNames=Ptrue_files, registrationName='Ptrue')
 u = LegacyVTKReader(FileNames=u_files,registrationName='u')
-if ins.true_u:
+if ins.true_ux:
     utrue = LegacyVTKReader(FileNames=utrue_files, registrationName='utrue')
 if ins.free_surface:
     Ls1 = LegacyVTKReader(FileNames=Ls1_files, registrationName='Ls1')
@@ -159,7 +159,7 @@ if ins.temp:
         Ttrue = LegacyVTKReader(FileNames=Ttrue_files, registrationName='Ttrue')
     if ins.solidification:
         d = LegacyVTKReader(FileNames=d_files, registrationName='d')
-        if ins.true_d:
+        if ins.true_dx:
             dtrue = LegacyVTKReader(FileNames=dtrue_files, registrationName='dtrue')
         Ls2 = LegacyVTKReader(FileNames=Ls2_files, registrationName='Ls2')
         if ins.true_ls2:
