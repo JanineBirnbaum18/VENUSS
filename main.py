@@ -18,8 +18,8 @@ from shapely.plotting import plot_polygon
 outfiles = []
 #for ei in ['_1e','_03e','','_003e','_001e']:
     #outfiles = np.append(outfiles, 'surface_relaxation_2_1Lx_' + '59x_01t' + ei )
-for Ki in ['-3','-4','-6', '-7']:
-    outfiles = np.append(outfiles, 'surface_relaxation_2_1Lx_' + '59x_01t_K' + Ki)
+#for Ki in ['-3','-4','-6', '-7']:
+#    outfiles = np.append(outfiles, 'surface_relaxation_2_1Lx_' + '59x_01t_K' + Ki)
 #for nxi in ['29','30','59','60','119','120']:
 #    for dti in ['25','1','01']:
 #        outfiles = np.append(outfiles,'surface_relaxation_2_1Lx_' + nxi+'x_'+dti+'t')
@@ -27,7 +27,10 @@ for Ki in ['-3','-4','-6', '-7']:
 #outfiles = []
 #for hi in ['30','60','120']:
 #    for dti in ['1','01','001']:
-#        outfiles = np.append(outfiles, 'stefan_iso_nosolid_' + hi + 'x_' + dti + 't')
+
+for hi in ['60','120']:
+    for dti in ['001']:
+        outfiles = np.append(outfiles, 'stefan_iso_nosolid_' + hi + 'x_' + dti + 't')
 
 #outfiles = ['stefan_iso_nosolid_30x_1t']
 
@@ -454,6 +457,7 @@ for outfilei in outfiles:
             md.add_initialized_fem_data('Previous2_psi', mfls, ls1.values(0))
 
     md.add_initialized_fem_data('fext',mff,0*ones_f)
+    md.add_initialized_fem_data('Previous_fext', mff, 0 * ones_f)
 
     # Density
     if ins.free_surface:
@@ -541,12 +545,10 @@ for outfilei in outfiles:
 
     # time dependence
     md.add_initialized_data('dt', [ins.dt])
-    BDF0 = 1
-    BDF1 = -1
-    BDF2 = 0
-    md.add_initialized_data('BDF0', [1])
-    md.add_initialized_data('BDF1', [-1])
+    md.add_initialized_data('BDF0', [2])
+    md.add_initialized_data('BDF1', [-2])
     md.add_initialized_data('BDF2', [0])
+    md.add_initialized_data('BDFf', [1])
 
     md_init.add_initialized_data('dt', [ins.dt])
 
@@ -646,6 +648,7 @@ for outfilei in outfiles:
 
         md.add_nonlinear_term(mim, time_int_p + '*Test_p')
         md.add_nonlinear_term(mim, '(u.Grad_p)*Test_p + 1/beta*Div_u*Test_p')
+        md.add_nonlinear_term(mim, 'BDFf*((Previous_u.Grad_Previous_p)*Test_p + 1/beta*Div_Previous_u*Test_p)')
         if 'SUPG' in ins.stab_p:
             S_SUPG_p = "beta*(u.Grad_p)*(u.Grad_Test_p) + Div_u*(u.Grad_Test_p)"
             tau_SUPG_p = '1/(2/dt + 2*Norm(u)/h)'
@@ -664,6 +667,7 @@ for outfilei in outfiles:
     else:
         time_int_u = "rho*((BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u)"
     linear_elastic = "(lambda*(Div_u*Div_Test_u) + mu*((Grad_u + Grad_u'):Grad_Test_u))*(dt/BDF0*solid + (1-solid))"
+    linear_elastic_init = "BDFf*((lambda*(Div_Previous_u*Div_Test_u) + mu*((Grad_Previous_u + Grad_Previous_u'):Grad_Test_u))*(dt/BDF0*solid + (1-solid)))"
     linear_elastic_adv = "(lambda*(Trace(Grad(u.Grad_Previous_d))*Div_Test_u) + mu*((Grad(u.Grad_Previous_d) + Grad(u.Grad_Previous_d)'):Grad_Test_u))*(dt/BDF0*solid)"
     residual_stress1 = "-(lambda*(Div_Previous_d*Div_Test_u) + mu*((Grad_Previous_d + Grad_Previous_d'):Grad_Test_u))*(BDF1/BDF0)*solid"
     residual_stress2 = "-(lambda*(Div_Previous2_d*Div_Test_u) + mu*((Grad_Previous2_d + Grad_Previous2_d'):Grad_Test_u))*(BDF2/BDF0)*solid"
@@ -675,6 +679,7 @@ for outfilei in outfiles:
     else:
         md.add_nonlinear_term(mim, time_int_u)
     md.add_nonlinear_term(mim, linear_elastic)
+    md.add_nonlinear_term(mim, linear_elastic_init)
     #md.add_nonlinear_term(mim, linear_elastic_adv)
 
     if ins.free_surface:
@@ -682,8 +687,10 @@ for outfilei in outfiles:
 
         time_int_psi = "((BDF0*psi+BDF1*Previous_psi+BDF2*Previous2_psi)/dt)"
         advection_psi = "(fext.Grad_psi)*Test_psi"
+        advection_psi_init = "BDFf*(fext.Grad_Previous_psi)*Test_psi"
         md.add_nonlinear_term(mim_all, time_int_psi + '*Test_psi')
         md.add_nonlinear_term(mim_all, advection_psi)
+        md.add_nonlinear_term(mim_all, advection_psi_init)
         tau_SUPG_psi = "1/(2/dt + 2*Norm(fext)/h)"
         S_SUPG_psi = "(fext.Grad_psi).(fext.Grad_Test_psi)"
 
@@ -695,7 +702,9 @@ for outfilei in outfiles:
     if ins.temp:
         time_int_t = "(BDF0*t+BDF1*Previous_t+BDF2*Previous2_t)/dt"
         advection_t = "(u.Grad_t)*Test_t"
+        advection_t_init = "BDFf*(Previous_u.Grad_Previous_t)*Test_t"
         diffusion = "kappa*(Grad_t.Grad_Test_t)"
+        diffusion_init = "BDFf*kappa*(Grad_Previous_t.Grad_Test_t)"
         S_SUPG_t = "(u.Grad_t)*(u.Grad_Test_t) + kappa*(Grad_t).Grad(u.Grad_Test_t)"
         S_GLS_t = "(kappa*(Grad(u.Grad_t).Grad_Test_t))"
         md.add_macro('Pe', "h*Norm(u)/(2*kappa)")
@@ -704,6 +713,8 @@ for outfilei in outfiles:
         md.add_nonlinear_term(mim, time_int_t + '*Test_t')
         md.add_nonlinear_term(mim, advection_t)
         md.add_nonlinear_term(mim, diffusion)
+        md.add_nonlinear_term(mim, advection_t_init)
+        md.add_nonlinear_term(mim, diffusion_init)
 
         tau_SUPG_t = '1/(2/dt + 4*kappa/(h*h) + 2*Norm(u)/h)*xi'
         tau_GLS_t = '1/(2/dt + 4*kappa/(h*h) + 2*Norm(u)/h)*xi'
@@ -1271,13 +1282,10 @@ for outfilei in outfiles:
             md.enable_variable('t')
 
     # update BDF coefficients
-    BDF0 = 3 / 2
-    BDF1 = -2
-    BDF2 = 1 / 2
-
-    md.set_variable('BDF0', [BDF0])
-    md.set_variable('BDF1', [BDF1])
-    md.set_variable('BDF2', [BDF2])
+    md.set_variable('BDF0', [3/2])
+    md.set_variable('BDF1', [-2])
+    md.set_variable('BDF2', [1/2])
+    md.set_variable('BDFf', [0])
 
     if ins.restart:
         tstart = last_ti
