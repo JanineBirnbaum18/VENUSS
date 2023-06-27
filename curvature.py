@@ -42,6 +42,11 @@ def compute_curvature(Psi_grid, dx, dy):
 
     curvature = (dxx_Psi_grid * (dy_Psi_grid ** 2) - 2 * (dx_Psi_grid * dy_Psi_grid * dxy_Psi_grid) + dyy_Psi_grid * (
         dx_Psi_grid) ** 2) / (mag_grad_Psi_grid ** 3)
+
+    dx_Psi_grid[:,0] = 0
+    dx_Psi_grid[:,-1] = 0
+    dy_Psi_grid[0,:] = 0
+    dy_Psi_grid[-1,:] = 0
     return dx_Psi_grid, dy_Psi_grid, curvature, mag_grad_Psi_grid
 
 def compute_mean_curvature(Psi_grid,Ls3_grid,curvature,eta_grid,dx,dy):
@@ -52,11 +57,11 @@ def compute_mean_curvature(Psi_grid,Ls3_grid,curvature,eta_grid,dx,dy):
     weights[(np.abs(Psi_grid)<np.sqrt(dx**2 + dy**2))] = 1/eta_grid[(np.abs(Psi_grid)<np.sqrt(dx**2 + dy**2))]
     weights[(Ls3_grid)<np.sqrt(dx**2 + dy**2)] = 0
     mean_curvature = np.sum(np.sum(curvature_ext*weights))/np.sum(np.sum(weights))
-    for i in [0,-1]:
-        if np.min(np.abs(eta_grid[i,:]))<(np.sqrt(dx**2 + dy**2)/2):
-            mean_curvature = 0
-        if np.min(np.abs(eta_grid[:,i]))<(np.sqrt(dx**2 + dy**2)/2):
-            mean_curvature = 0
+    #for i in [0,-1]:
+    #    if np.min(np.abs(eta_grid[i,:]))<(np.sqrt(dx**2 + dy**2)/2):
+    #        mean_curvature = 0
+    #    if np.min(np.abs(eta_grid[:,i]))<(np.sqrt(dx**2 + dy**2)/2):
+    #        mean_curvature = 0
     return mean_curvature
 
 def compute_points(ls1_interface,pts,topography,dx,dy,ls3_interface=0):

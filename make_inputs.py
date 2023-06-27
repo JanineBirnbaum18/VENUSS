@@ -6,9 +6,9 @@ import numpy as np
 dictionary = {
     # mesh geometry
     "ndim": 2,
-    "L_x": 0.5, # length of boundaries (m)
-    "L_y": 0.5,
-    "L_z": 0.5,
+    "L_x": 1, # length of boundaries (m)
+    "L_y": 1,
+    "L_z": 1,
     "nx": 30, # number of elements
     "ny": 30,
     "etype": "cartesian", # element type cartesian, triangles grid, etc.
@@ -17,7 +17,7 @@ dictionary = {
     "u_k": 2, # polynomial order
     "p_k": 1,
     "t_k": 2,
-    "ls_k": 1,
+    "ls_k": 2,
     "nmat": 1,
 
     # initial free surface level set
@@ -39,6 +39,7 @@ dictionary = {
     # Pressure
     "compressible": False,
     "steady": True,
+    "steady_init": True,
     "p_atm": 0, # atmospheric pressure (Pa)
     "rho1": 2500, # density where ls1p<0 (lava) (kg/m3)
     "rho2": 1, # density where ls1p>0 (air) (kg/m3)
@@ -85,20 +86,20 @@ dictionary = {
     "f_y": "-rho*9.81",
     "left_ux": 0, # Dirichlet velocity condition (m/s) as float,str,or None
     "left_uy": None,
-    "left_udx": 0, # Neumann velocity condition (1/s)
-    "left_udy": None,
+    "left_dux": 0, # Neumann velocity condition (1/s)
+    "left_duy": None,
     "right_ux": 0,
     "right_uy": 0,
-    "right_udx": 0,
-    "right_udy": None,
+    "right_dux": 0,
+    "right_duy": None,
     "top_ux": 0,
     "top_uy": 0,
-    "top_udx": None,
-    "top_udy": None,
+    "top_dux": None,
+    "top_duy": None,
     "bottom_ux": 0,
     "bottom_uy": 0,
-    "bottom_udx": None,
-    "bottom_udy": None,
+    "bottom_dux": None,
+    "bottom_duy": None,
 
     "influx": False,
     "influx_ux": 0, # velocity in m/s
@@ -111,17 +112,17 @@ dictionary = {
     "basal_velocity": 'no_slip', # 'no_slip' or 'no_normal'
 
     # Temp boundary conditions
-    "left_T": 100, # Dirichlet temperature condition (deg C) as float,str, or None
-    "left_flux_T": None, # Neumann temperature condition (deg C/m)
-    "right_T": 100,
-    "right_flux_T": None,
-    "top_T": 100,
-    "top_flux_T": None,
-    "bottom_T": 100,
-    "bottom_flux_T": None,
+    "left_t": 100, # Dirichlet temperature condition (deg C) as float,str, or None
+    "left_dt": None, # Neumann temperature condition (deg C/m)
+    "right_t": 100,
+    "right_dt": None,
+    "top_t": 100,
+    "top_dt": None,
+    "bottom_t": 100,
+    "bottom_dt": None,
 
-    "influx_T": 1100,
-    "influx_flux_T": None,
+    "influx_t": 1100,
+    "influx_dt": None,
 
     "surface_temp": None,
     "surface_flux": None, # (W/m2) or 'forced convection,radiation'
@@ -129,15 +130,15 @@ dictionary = {
     "basal_flux": None, # in W/m2 or 'conduction'
 
     # time discretization
-    "tf": 0.5, # final time in s
-    "dt": 0.001, # time step in s
+    "tf": 0.1, # final time in s
+    "dt": 0.002, # time step in s
     "restart": False,
 
     # Solve options
     "stab_p": None, # None, SUPG for pressure stabilization
     "stab_t": 'GLS', # None, SUPG, or GLS for temp stabilization
     "epsilon_psi": 0.01, # coefficient for viscous relaxation of free surface where interface velocity F = (1 - epsilon_psi*curvature)
-    "kappa_psi": 1e-5, # diffusion coefficient for curvature calculation
+    "kappa_psi": 1e-6, # diffusion coefficient for curvature calculation
 
     # output options
     "outfile": './Results/spreading_drop_iso',
