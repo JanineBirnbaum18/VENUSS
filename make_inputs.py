@@ -140,6 +140,9 @@ dictionary = {
     "epsilon_psi": 0.01, # coefficient for viscous relaxation of free surface where interface velocity F = (1 - epsilon_psi*curvature)
     "kappa_psi": 1e-6, # diffusion coefficient for curvature calculation
 
+    "max_residual": 1e-12,
+    "max_iter": 100,
+
     # output options
     "outfile": './Results/spreading_drop_iso',
     "noutput": 1, # number of timesteps between output

@@ -1071,7 +1071,7 @@ for outfilei in outfiles:
         # initialize pressure and velocity with incompressible, steady stokes
 
         if ins.steady | ins.steady_init:
-            md_init.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
+            md_init.solve('max_res', ins.max_residual, 'max_iter', ins.max_iter, 'noisy')
 
             p_init = md_init.variable('p')
             u_init = md_init.variable('u')
@@ -1387,7 +1387,7 @@ for outfilei in outfiles:
             md.set_variable('dt',ins.dt/10)
 
         # Solve
-        md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
+        md.solve('max_res', ins.max_residual, 'max_iter', ins.max_iter, 'noisy')
 
         Previous_u = U
         U = ones_u * 0
@@ -1411,7 +1411,7 @@ for outfilei in outfiles:
             if ins.solidification:
 
                 md.enable_variable('d')
-                md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
+                md.solve('max_res', ins.max_residual, 'max_iter', ins.max_iter, 'noisy')
 
                 Previous_d_temp = D
                 D = ones_u * 0
@@ -1458,7 +1458,6 @@ for outfilei in outfiles:
         if ((round(ti/ins.dt) % ins.noutput == 0) & (ti>=ins.dt)) or (np.abs(ti-ins.tf)<ins.dt):
             print('Time = %g' % ti)
             numstr = str(round(ti * 10 ** ndecimal)).split('.')[0].zfill(ndigits)
-            print(numstr)
             # print('Average temperature %g' % np.mean(T))
             if ins.vtk:
                 mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + numstr + '.vtk', U)
@@ -1546,7 +1545,7 @@ for outfilei in outfiles:
 
         if ins.free_surface:
             md.enable_variable('psis')
-            md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
+            md.solve('max_res', ins.max_residual, 'max_iter', ins.max_iter, 'noisy')
             md.disable_variable('psis')
 
             # construct extension velocities
@@ -1641,7 +1640,7 @@ for outfilei in outfiles:
                                                method='nearest'))
 
             md.enable_variable('psi')
-            md.solve('max_res', 1E-10, 'max_iter', 10, 'noisy')
+            md.solve('max_res', ins.max_residual, 'max_iter', ins.max_iter, 'noisy')
             md.disable_variable('psi')
 
             # mass conservation correction
