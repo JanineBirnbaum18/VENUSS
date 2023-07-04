@@ -17,8 +17,9 @@ dictionary = {
     "u_k": 2, # polynomial order
     "p_k": 1,
     "t_k": 2,
+    "t_enrich": True,
     "ls_k": 2,
-    "nmat": 1,
+    "mat_k": 1,
 
     # initial free surface level set
     "free_surface": True,
@@ -41,6 +42,7 @@ dictionary = {
     "steady": True,
     "steady_init": True,
     "p_atm": 0, # atmospheric pressure (Pa)
+    "p_bound": 'bottom_left',
     "rho1": 2500, # density where ls1p<0 (lava) (kg/m3)
     "rho2": 1, # density where ls1p>0 (air) (kg/m3)
     "rho3": 3000, # density where ls3p<0 (ground) (kg/m3)
@@ -68,10 +70,11 @@ dictionary = {
     "heat_transfer_coeff": 1e-9, # in air (W/m2K)
 
     # Viscosity
-    "eta_exp": "exp(vfta + vftb/(T + 273 - vftc))", # (Pas)
+    "eta_exp": "etar*exp(vfta + vftb/(T + 273 - vftc))", # (Pas)
     "vfta": np.log(1e2),
     "vftb": 0.0,
     "vftc": 0.0,
+    "etar": 1,
     "Tg": 500, # (deg C)
     "max_eta": 1e7, # (Pas)
     "eta2": 1, # (Pas)
@@ -135,10 +138,13 @@ dictionary = {
     "restart": False,
 
     # Solve options
-    "stab_p": None, # None, SUPG for pressure stabilization
-    "stab_t": 'GLS', # None, SUPG, or GLS for temp stabilization
+    "stab_p": 'SUPG', # None, GLS, or SUPG for pressure stabilization
+    "stab_psi": 'GLS', # level set stabilization
+    "stab_d": 'SUPG', # displacement stabilization
+    "stab_t": 'GLS', # temp stabilization
     "epsilon_psi": 0.01, # coefficient for viscous relaxation of free surface where interface velocity F = (1 - epsilon_psi*curvature)
     "kappa_psi": 1e-6, # diffusion coefficient for curvature calculation
+    "ndt0": 10, # number of substeps for BDF bootstrap
 
     "max_residual": 1e-12,
     "max_iter": 100,
