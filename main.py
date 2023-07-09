@@ -22,13 +22,13 @@ outfiles = []
 
 #outfiles = ['compressible_elastic']
 
-for ei in ['_001e']:
-    outfiles = np.append(outfiles, 'surface_relaxation_2_1Lx_' + '59x_01t_-6K' + ei)
-for Ki in ['-4','-5','-6','-7','-8']:
-    outfiles = np.append(outfiles, 'surface_relaxation_2_1Lx_' + '59x_01t_' + Ki + 'K_01e')
-for nxi in ['119','59','29']:
-    for dti in ['1','033','01','0033']:
-        outfiles = np.append(outfiles,'surface_relaxation_2_1Lx_' + nxi+'x_'+dti+'t')
+#for ei in ['_1e','_03e','_003e','_001e']:
+#    outfiles = np.append(outfiles, 'surface_relaxation_2_1Lx_59x_01t_-6K' + ei)
+#for Ki in ['-4','-5','-6','-7','-8']:
+#    outfiles = np.append(outfiles, 'surface_relaxation_2_1Lx_' + '59x_01t_' + Ki + 'K_01e')
+#for nxi in ['119','59','29']:
+#    for dti in ['1','033','01','0033']:
+#        outfiles = np.append(outfiles,'surface_relaxation_2_1Lx_' + nxi+'x_'+dti+'t_-6K_001e')
 
 #for hi in ['30','60','120']:
 #    for dti in ['1','033','01','0033','001']:
@@ -37,12 +37,13 @@ for nxi in ['119','59','29']:
 #    for dti in ['01']:
 #        outfiles = np.append(outfiles, 'stefan_iso_nosolid_' + hi + 'x_' + dti + 't')
 
-#for dxi in ['29','59','119']:
+#for dxi in ['30','60','120']:
 #    for dti in ['1','033','01','0033']:
-#        outfiles = np.append(outfiles, 'stefan_iso_steady_solid_' + dxi + 'x_' + dti + 't')
-#outfiles = ['stefan_iso_time_test_29x_033t']
+#        outfiles = np.append(outfiles, 'stefan_iso_solid_' + dxi + 'x_steady')# + dti + 't')
+outfiles = ['spreading_drop_noniso_solid02_highT_59x_005t']
+#outfiles = ['syracuse']
 
-#outfiles = np.append(outfiles,'syracuse_t')
+#outfiles = np.append(outfiles,'syracuse')
 #outfiles = np.append(outfiles,'syracuse_d')
 
 #outfiles = ['stefan_solid_30x_001t']
@@ -51,6 +52,8 @@ for nxi in ['119','59','29']:
         #outfiles = np.append(outfiles, 'spreading_drop_iso_' + dxi + 'x_' + dti + 't')
         #outfiles = np.append(outfiles, 'spreading_drop_iso_flux_' + dxi + 'x_' + dti + 't')
         #outfiles = np.append(outfiles, 'spreading_drop_iso_radiation_' + dxi + 'x_' + dti + 't')
+#outfiles = np.append(outfiles, 'spreading_drop_noniso_59x_01t')
+#outfiles = np.append(outfiles, 'spreading_drop_noniso_solid_59x_01t')
 #outfiles = ['compressible_elastic']
 #outfiles = ['surface_relaxation_2_1Lx_119x_001t']
 #for dxi in ['29','59','119']:
@@ -61,8 +64,9 @@ for nxi in ['119','59','29']:
 #    outfiles = np.append(outfiles,'cavity_60x_' + dti + 't_unsteady_compressible')
 #outfiles=['compressible_elastic']
 
-#for nt in ['steady']:
-#    outfiles = np.append(outfiles, 'spreading_drop_iso_59x_001t_' + nt)
+#for nt in ['']:
+#    outfiles = np.append(outfiles, 'spreading_drop_noniso_solid_' + nt + '59x_1t')
+#outfiles = ['syracuse_d']
 
 for outfilei in outfiles:
     print(outfilei)
@@ -133,10 +137,6 @@ for outfilei in outfiles:
                 err_ls1 = np.zeros(int(np.ceil(ins.tf / ins.dt)))
                 err_ls1[:len(err_ls1_i)] = err_ls1_i
                 expected_area = hf.get('expected_area')[:]
-            if ins.temp & ins.solidification:
-                last_Ls2 = hf.get('last_Ls2')[:]
-            if ins.topography:
-                last_Ls3 = hf.get('last_Ls3')[:]
             last_ti = hf.get('last_ti')[:]
             hf.close()
         except Exception as e:
@@ -224,10 +224,6 @@ for outfilei in outfiles:
     if ins.restart:
         if ins.free_surface:
             ls1.set_values(last_Ls1)
-        if ins.temp & ins.solidification:
-            ls2.set_values(last_Ls2)
-        if ins.topography:
-            ls3.set_values(last_Ls3)
 
     if ins.free_surface | ins.topography:
         mls.adapt()
@@ -513,6 +509,12 @@ for outfilei in outfiles:
         md.add_initialized_fem_data('Previous2_d', mfu, Previous_d)
         md.add_initialized_fem_data('Previous_psi', mfls, last2_Ls1)
         md.add_initialized_fem_data('Previous2_psi', mfls, last_Ls1)
+
+        if ins.temp & ins.solidification:
+            T_ls = compute_interpolate_on(mft, Previous_t, mfls)
+            ls2.set_values((Previous_t-Tg)/Tg)
+
+
     else:
         u_init = ones_u * 0
         p_init = ones_p0 * ins.p_atm
@@ -1244,8 +1246,7 @@ for outfilei in outfiles:
 
     # Main loop
     for ti in t:
-        print('Time_no_output = %g' % ti)
-        if np.abs(ti - 2*ins.dt)<(ins.dt/100):
+        if np.abs(ti - ins.dt)<(ins.dt/100):
             md.set_variable('Previous2_u', u_init)
             md.set_variable('Previous_u', U)
 
@@ -1424,7 +1425,7 @@ for outfilei in outfiles:
         md.set_variable('BDF1', [-2])
         md.set_variable('BDF2', [1 / 2])
         md.set_variable('BDFf', [0])
-        if ti < 2*ins.dt-ins.dt/100:
+        if ti < (ins.dt-ins.dt/100):
             md.set_variable('dt',ins.dt/ins.ndt0)
 
         # Solve
@@ -1469,6 +1470,10 @@ for outfilei in outfiles:
                     d_ls2 = np.ones(x_grid.shape) * (-2 * np.max([ins.L_x, ins.L_y]))
 
                 if ins.free_surface:
+                    Ls1_ext = sciinterp.griddata(D_ls.transpose(), ls1.values(0),
+                                                 np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                                                 method='nearest')
+                    d_ls1 = skfmm.distance(Ls1_ext.reshape(x_grid.shape), dx=[dy, dx])
                     d = np.maximum(np.array(d_ls1), np.array(d_ls2))
                 else:
                     d = d_ls2
@@ -1744,8 +1749,8 @@ for outfilei in outfiles:
             mfmat_cutoff.set_enriched_dofs(enriched_dofs)
 
             if ins.temp & ins.solidification:
-                Previous_Ls_u = compute_interpolate_on(mfls, md.variable('Previous_psi'), mfu)
-                Ls1_u = compute_interpolate_on(mfls, ls1.values(0), mfu)
+                Previous_Ls_u = compute_interpolate_on(mfls, md.variable('Previous_psi'), mfu.basic_dof_nodes())
+                Ls1_u = compute_interpolate_on(mfls, ls1.values(0), mfu.basic_dof_nodes())
                 D[(Previous_Ls_u >= 0) & (Ls1_u <= 0)] = D_ext[(Previous_Ls_u >= 0) & (Ls1_u <= 0)]
 
 
