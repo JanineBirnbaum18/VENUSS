@@ -15,58 +15,7 @@ from curvature import *
 from math import erf
 from shapely.plotting import plot_polygon
 
-outfiles = []
-#for dti in ['1','033','01','0033','001']:
-#for dti in ['01']:
-#    outfiles = np.append(outfiles, 'cavity_60x_' + dti + 't_unsteady')
-
-#outfiles = ['compressible_elastic']
-
-#for ei in ['_1e','_03e','_003e','_001e']:
-#    outfiles = np.append(outfiles, 'surface_relaxation_2_1Lx_59x_01t_-6K' + ei)
-#for Ki in ['-4','-5','-6','-7','-8']:
-#    outfiles = np.append(outfiles, 'surface_relaxation_2_1Lx_' + '59x_01t_' + Ki + 'K_01e')
-#for nxi in ['119','59','29']:
-#    for dti in ['1','033','01','0033']:
-#        outfiles = np.append(outfiles,'surface_relaxation_2_1Lx_' + nxi+'x_'+dti+'t_-6K_001e')
-
-#for hi in ['30','60','120']:
-#    for dti in ['1','033','01','0033','001']:
-#        outfiles = np.append(outfiles, 'stefan_iso_nosolid_' + hi + 'x_' + dti + 't')
-#for hi in ['60']:
-#    for dti in ['01']:
-#        outfiles = np.append(outfiles, 'stefan_iso_nosolid_' + hi + 'x_' + dti + 't')
-
-#for dxi in ['30','60','120']:
-#    for dti in ['1','033','01','0033']:
-#        outfiles = np.append(outfiles, 'stefan_iso_solid_' + dxi + 'x_steady')# + dti + 't')
-outfiles = ['spreading_drop_noniso_solid02_highT_59x_005t']
-#outfiles = ['syracuse']
-
-#outfiles = np.append(outfiles,'syracuse')
-#outfiles = np.append(outfiles,'syracuse_d')
-
-#outfiles = ['stefan_solid_30x_001t']
-#for dxi in ['59']:
-#    for dti in ['1']:
-        #outfiles = np.append(outfiles, 'spreading_drop_iso_' + dxi + 'x_' + dti + 't')
-        #outfiles = np.append(outfiles, 'spreading_drop_iso_flux_' + dxi + 'x_' + dti + 't')
-        #outfiles = np.append(outfiles, 'spreading_drop_iso_radiation_' + dxi + 'x_' + dti + 't')
-#outfiles = np.append(outfiles, 'spreading_drop_noniso_59x_01t')
-#outfiles = np.append(outfiles, 'spreading_drop_noniso_solid_59x_01t')
-#outfiles = ['compressible_elastic']
-#outfiles = ['surface_relaxation_2_1Lx_119x_001t']
-#for dxi in ['29','59','119']:
-#    for dti in ['1','033','01','0033']:
-#        outfiles = np.append(outfiles, 'surface_relaxation_2_1Lx_' + dxi + 'x_' + dti + 't')
-
-#for dti in ['001']:
-#    outfiles = np.append(outfiles,'cavity_60x_' + dti + 't_unsteady_compressible')
-#outfiles=['compressible_elastic']
-
-#for nt in ['']:
-#    outfiles = np.append(outfiles, 'spreading_drop_noniso_solid_' + nt + '59x_1t')
-#outfiles = ['syracuse_d']
+outfiles = ['syracuse_noslip']
 
 for outfilei in outfiles:
     print(outfilei)
@@ -105,7 +54,7 @@ for outfilei in outfiles:
 
     if ins.restart:
         try:
-            hf = h5py.File(ins.outfile + '/' + ins.outfile.split('/')[-1] + '.h5', 'r')
+            hf = h5py.File(ins.outfile + '/' + ins.outfile.split('/')[-1] + '.h5', 'r+')
             U = hf.get('last_u')[:]
             Previous_u = hf.get('last2_u')[:]
             err_u_i = hf.get('err_u')[:]
@@ -138,6 +87,7 @@ for outfilei in outfiles:
                 err_ls1[:len(err_ls1_i)] = err_ls1_i
                 expected_area = hf.get('expected_area')[:]
             last_ti = hf.get('last_ti')[:]
+            print(last_ti)
             hf.close()
         except Exception as e:
             print(e)
@@ -162,12 +112,14 @@ for outfilei in outfiles:
 
     if ins.ndim == 2:
         # noinspection PyUnboundLocalVariable
+        bounds = ['left', 'right', 'top', 'bottom']
+
         fb_left = mesh.outer_faces_with_direction([-1., 0.], 0.01)  # boundary 1
         fb_right = mesh.outer_faces_with_direction([1., 0.], 0.01)  # boundary 2
         fb_top = mesh.outer_faces_with_direction([0., 1.], 0.01)  # boundary 3
         fb_bottom = mesh.outer_faces_with_direction([0., -1.], 0.01)  # boundary 4
 
-        # boundary 5
+        # boundary 7
         if 'bottom_left' in ins.p_bound:
             fb_p = mesh.outer_faces_in_box([-dx, -dy], [dx, dy])
         if 'bottom_right' in ins.p_bound:
@@ -178,10 +130,18 @@ for outfilei in outfiles:
             fb_p = mesh.outer_faces_in_box([ins.L_x-dx, ins.L_y-dy], [ins.L_x+dx, ins.L_y+dy])
 
         if ins.influx:
-            fb_influx = mesh.faces_from_cvid(mesh.convexes_in_box((ins.influx_left, ins.influx_bottom),
-                                                                  (ins.influx_right, ins.influx_top)))
+            #fb_influx = mesh.faces_from_cvid(mesh.convexes_in_box((ins.influx_left, ins.influx_bottom),
+            #                                                      (ins.influx_right, ins.influx_top)))
+            fb_influx = mesh.outer_faces_in_box([ins.influx_left, ins.influx_bottom],
+                                                [ins.influx_right, ins.influx_top])
 
-    bounds = ['left', 'right', 'top', 'bottom']
+            fb_left = fb_left[:,~(np.in1d(fb_left[0], fb_influx[0]) & np.in1d(fb_left[1], fb_influx[1]))]
+            fb_right = fb_right[:,~(np.in1d(fb_right[0], fb_influx[0]) & np.in1d(fb_right[1], fb_influx[1]))]
+            fb_top = fb_top[:,~(np.in1d(fb_top[0], fb_influx[0]) & np.in1d(fb_top[1], fb_influx[1]))]
+            fb_bottom = fb_bottom[:,~(np.in1d(fb_bottom[0], fb_influx[0]) & np.in1d(fb_bottom[1], fb_influx[1]))]
+
+            bounds = bounds + ['influx']
+
     bounds_type = []
     for i, bound in enumerate(bounds):
         mesh.set_region(i + 1, eval('fb_' + bound))
@@ -190,11 +150,8 @@ for outfilei in outfiles:
         else:
             bounds_type = np.append(bounds_type, type(eval('ins.' + bound + '_ux')))
 
-    mesh.set_region(5,fb_p)
+    mesh.set_region(7,fb_p)
     #mesh.set_region(6,fb_topleft)
-
-    if ins.influx:
-        mesh.set_region(7, fb_influx)
 
     if ins.vtk:
         # export to vtk for visualization through python
@@ -210,7 +167,7 @@ for outfilei in outfiles:
     # temperature contour
     if ins.temp & ins.solidification:
         mls2 = gf.MeshLevelSet(mesh)
-        ls2 = gf.LevelSet(mesh, ins.ls_k, ins.ls2p, ins.ls2s)
+        ls2 = gf.LevelSet(mesh, ins.t_k, ins.ls2p, ins.ls2s)
         mls2.add(ls2)
         mls2.adapt()
 
@@ -511,8 +468,8 @@ for outfilei in outfiles:
         md.add_initialized_fem_data('Previous2_psi', mfls, last_Ls1)
 
         if ins.temp & ins.solidification:
-            T_ls = compute_interpolate_on(mft, Previous_t, mfls)
-            ls2.set_values((Previous_t-Tg)/Tg)
+            #T_ls = compute_interpolate_on(mft, Previous_t, mfls)
+            ls2.set_values((T-Tg)/Tg)
 
 
     else:
@@ -528,6 +485,7 @@ for outfilei in outfiles:
         md.add_initialized_fem_data('Previous2_d', mfu, d_init)
         if ins.free_surface:
             psi_init = ls1.values(0)
+            md.add_initialized_fem_data('psi_init', mfls, psi_init)
             md.add_initialized_fem_data('Previous_psi', mfls, psi_init)
             md.add_initialized_fem_data('Previous2_psi', mfls, psi_init)
 
@@ -574,7 +532,13 @@ for outfilei in outfiles:
         kappa_init = kappa.copy()
         md.add_initialized_fem_data('kappa', mfmat, kappa)
         md.add_initialized_fem_data('Previous_kappa', mfmat, kappa)
-        md.add_initialized_data('cp', [ins.cp])
+
+        cp = ones_mat * ins.cp1
+        if ins.free_surface:
+            cp[ls1_mat > 0] = ins.cp2
+        if ins.topography:
+            cp[ls3_mat < 0] = ins.cp3
+        md.add_initialized_fem_data('cp', mfmat, cp)
 
     # Temperature
     if ins.temp:
@@ -589,28 +553,28 @@ for outfilei in outfiles:
             if (type(ins.T_init) is float) or (type(ins.T_init) is int):
                 t_init = mft.eval('1') * ins.T_init
             elif type(ins.T_init) is str:
-                t_init = eval(ins.T_init)
+                t_init = eval(ins.T_init.replace('X','x_t').replace('Y','y_t'))
             elif type(ins.T_init) is type(None):
-                 t_init = mft.eval('1') * ins.T0
-            if ins.free_surface:
-                ls1_t = compute_interpolate_on(mfls,ls1.values(0),mft)
-                t_init[ls1_t > np.sqrt(dx**2 + dy**2)/100] = ins.T_atm
-            if ins.topography:
-                ls3_t = compute_interpolate_on(mfls, ls3.values(0), mft)
-                t_init[ls3_t < 0] = ins.T_atm
+                t_init = mft.eval('1') * ins.T0
+                if ins.free_surface:
+                    ls1_t = compute_interpolate_on(mfls,ls1.values(0),mft)
+                    t_init[ls1_t > np.sqrt(dx**2 + dy**2)/20] = ins.T_atm
+                if ins.topography:
+                    ls3_t = compute_interpolate_on(mfls, ls3.values(0), mft)
+                    t_init[ls3_t < 0] = ins.T_atm
 
             md.add_initialized_fem_data('Previous_t', mft, t_init)
             md.add_initialized_fem_data('Previous2_t', mft, t_init)
 
-            T_mat = compute_interpolate_on(mft, t_init, mfmat)
-            eta_exp = ins.eta_exp.replace('vfta', str(ins.vfta)).replace('vftb', str(ins.vftb)).replace(
-                'vftc', str(ins.vftc)).replace('etar', str(ins.etar))
-            eta = eval(eta_exp.replace('exp', 'np.exp').replace('T', 'T_mat'))
-            eta[T_mat <= ins.vftb/(np.log(ins.max_eta)-ins.vfta) - 273 + ins.vftc] = ins.max_eta
+        T_mat = compute_interpolate_on(mft, t_init, mfmat)
+        eta_exp = ins.eta_exp.replace('vfta', str(ins.vfta)).replace('vftb', str(ins.vftb)).replace(
+            'vftc', str(ins.vftc)).replace('etar', str(ins.etar))
+        eta = eval(eta_exp.replace('exp', 'np.exp').replace('T', 'T_mat'))
+        eta[T_mat <= ins.vftb/(np.log(ins.max_eta)-ins.vfta) - 273 + ins.vftc] = ins.max_eta
 
-        T_ls = compute_interpolate_on(mft, t_init, mfls)
+        #T_ls = compute_interpolate_on(mft, t_init, mfls)
         if ins.solidification:
-            ls2.set_values((T_ls - Tg) / Tg)
+            ls2.set_values((t_init - Tg) / Tg)
             mls2.adapt()
 
         if ins.free_surface:
@@ -641,7 +605,7 @@ for outfilei in outfiles:
     if ins.temp & ins.solidification:
         lam_solid = ins.E * ins.nu / ((1 + ins.nu) * (1 - 2 * ins.nu))
         mu_solid = ins.E / (2 * (1 + ins.nu))
-        ls2_mat = compute_interpolate_on(mfls,ls2.values(0),mfmat)
+        ls2_mat = compute_interpolate_on(mft,ls2.values(0),mfmat)
         if ins.free_surface:
             lam[(ls1_mat <= 0) & (ls2_mat < 0)] = lam_solid
             mu[(ls1_mat <= 0) & (ls2_mat < 0)] = mu_solid
@@ -654,6 +618,9 @@ for outfilei in outfiles:
     md.add_initialized_fem_data('lambda', mfmat, lam)
     md.add_initialized_fem_data('mu', mfmat, mu)
     md.add_initialized_fem_data('solid', mfmat, solid)
+
+    md.add_initialized_fem_data('E', mfmat, ins.E*solid)
+    md.add_initialized_fem_data('nu', mfmat, ins.nu*solid)
 
     md.add_initialized_fem_data('Previous_lambda', mfmat, lam)
     md.add_initialized_fem_data('Previous_mu', mfmat, mu)
@@ -782,7 +749,7 @@ for outfilei in outfiles:
         md.add_nonlinear_term(mim, linear_elastic + '*(dt/BDF0*solid + (1-solid))')
         md.add_nonlinear_term(mim, linear_elastic_init + '*(dt/BDF0*Previous_solid + (1-Previous_solid))')
 
-        linear_elastic_adv = "(lambda*(Trace(Grad(u.Grad_Previous_d))*Div_Test_u) + mu*((Grad(u.Grad_Previous_d) + Grad(u.Grad_Previous_d)'):Grad_Test_u))*(dt/BDF0*solid)"
+        linear_elastic_adv = "(lambda*(Trace(Grad(u.Grad_Previous_d))*Div_Test_u) + mu*((Grad(u.Grad_Previous_d) + Grad(u.Grad_Previous_d)'):Grad_Test_u))*(dt/BDF0*Previous_solid)"
         residual_stress1 = "-(lambda*(Div_Previous_d*Div_Test_u) + mu*((Grad_Previous_d + Grad_Previous_d'):Grad_Test_u))*(BDF1/BDF0)*solid"
         residual_stress2 = "-(lambda*(Div_Previous2_d*Div_Test_u) + mu*((Grad_Previous2_d + Grad_Previous2_d'):Grad_Test_u))*(BDF2/BDF0)*solid"
 
@@ -877,23 +844,35 @@ for outfilei in outfiles:
             md.add_nonlinear_term(mim, tau_GLS_t_init + '*' + S_GLS_t_init)
 
     if ins.temp & ins.solidification:
-        time_int_d = "((BDF0*d+BDF1*Previous_d+BDF2*Previous2_d)/dt)"
-        advection_d = "(u.Grad_d).Test_d"
+        time_int_d = "((BDF0*d+(BDF1*Previous_d+BDF2*Previous2_d)*Previous_solid)/dt)"
+        advection_d = "(u.Grad_Previous_d).Test_d*Previous_solid"
         md.add_nonlinear_term(mim, time_int_d + '.Test_d')
         #md.add_nonlinear_term(mim, advection_d)
-        md.add_nonlinear_term(mim, "-u.Test_d - BDFf*(Previous_u.Test_d)")
+        md.add_nonlinear_term(mim, "(-u.Test_d*solid - BDFf*(Previous_u.Test_d)*Previous_solid)")
 
         if 'SUPG' in ins.stab_d:
             tau_SUPG_d = "1/(2/dt + 2*Norm(u)/h)"
-            S_SUPG_d = "(u.Grad_d):(u.Grad_Test_d)"
+            S_SUPG_d = "((u.Grad_Previous_d).(u.Grad_Test_d) - u.(u.Grad_Test_d))"
             md.add_nonlinear_term(mim, tau_SUPG_d + '*' + time_int_d + '.(u.Grad_Test_d)')
-            md.add_nonlinear_term(mim, tau_SUPG_d + '*' + S_SUPG_d)
+            md.add_nonlinear_term(mim, tau_SUPG_d + '*' + S_SUPG_d + '*solid')
+
+            tau_SUPG_d_init = "BDFf/(2/dt + 2*Norm(Previous_u)/h)"
+            S_SUPG_d_init = "(Previous_u.(Previous_u.Grad_Test_d))"
+
+            md.add_nonlinear_term(mim, tau_SUPG_d_init + '*' + time_int_d + '.(Previous_u.Grad_Test_d)')
+            md.add_nonlinear_term(mim, tau_SUPG_d_init + '*' + S_SUPG_d_init + '*solid')
+
 
         elif 'GLS' in ins.stab_d:
             tau_GLS_d = "1/(2/dt + 2*Norm(u)/h)"
-            S_GLS_d = "(u.Grad_d):(Trace(Grad(u.Test_d))"
+            S_GLS_d = "((u.Grad_Previous_d).(Trace(Grad(u.Test_d)) - u.(Trace(Grad(u.Test_d)))"
             md.add_nonlinear_term(mim, tau_GLS_d + '*' + time_int_d + '.(Trace(Grad(u.Test_d))')
             md.add_nonlinear_term(mim, tau_GLS_d + '*' + S_GlS_d)
+
+            tau_GLS_d_init = "BDFf/(2/dt + 2*Norm(Previous_u)/h)"
+            S_GLS_d_init = "- Preivous_u.(Trace(Grad(Previous_u.Test_d)))"
+            md.add_nonlinear_term(mim, tau_GLS_d_init + '*' + time_int_d + '.(Trace(Grad(Preivous_u.Test_d))')
+            md.add_nonlinear_term(mim, tau_GLS_d_init + '*' + S_GlS_d_init)
 
         #tau_SUPG_d_init = "BDFf/(2/dt + 2*Norm(Previous_u)/h)"
         #md.add_nonlinear_term(mim, tau_SUPG_d_init + '*' + time_int_d + '.(Previous_u.Grad_Test_d)')
@@ -907,14 +886,14 @@ for outfilei in outfiles:
         if (type(ins.f_x) is float) or (type(ins.f_x) is int):
             f_xi = ones_mat * ins.f_x
         elif type(ins.f_x) is str:
-            f_xi = eval(ins.f_x.replace('y', 'y_ls').replace('x', 'x_ls'))
+            f_xi = eval(ins.f_x.replace('Y', 'y_ls').replace('X', 'x_ls'))
         elif type(ins.f_x) is type(None):
             f_xi = ones_mat * 0
 
         if (type(ins.f_y) is float) or (type(ins.f_y) is int):
             f_yi = ones_mat * ins.f_y
         elif type(ins.f_y) is str:
-            f_yi = eval(ins.f_y.replace('y', 'y_ls').replace('x', 'x_ls'))
+            f_yi = eval(ins.f_y.replace('Y', 'y_ls').replace('X', 'x_ls'))
         elif type(ins.f_y) is type(None):
             f_yi = ones_mat * 0
 
@@ -937,7 +916,7 @@ for outfilei in outfiles:
                 H[0,0] = 1
                 dirichlet = True
             if type(eval('ins.' + bound + '_' + var + 'x')) is str:
-                data_x = eval(eval('ins.' + bound + '_' + var + 'x').replace('x','x_p').replace('y','y_p'))
+                data_x = eval(eval('ins.' + bound + '_' + var + 'x').replace('X','x_p').replace('Y','y_p'))
                 dirichlet = True
                 H[0,0] = 1
             if type(eval('ins.' + bound + '_' + var + 'y')) is type(None):
@@ -948,7 +927,7 @@ for outfilei in outfiles:
                 dirichlet = True
                 H[1,1] = 1
             if type(eval('ins.' + bound + '_' + var + 'y')) is str:
-                data_uy = eval(eval('ins.' + bound + '_' + var + 'y').replace('x','x_p').replace('y','y_p'))
+                data_y = eval(eval('ins.' + bound + '_' + var + 'y').replace('X','x_p').replace('Y','y_p'))
                 dirichlet = True
                 H[1,1] = 1
             if type(eval('ins.' + bound + '_' + var + 'x')) is type(None):
@@ -1002,15 +981,15 @@ for outfilei in outfiles:
     md_init.add_initialized_fem_data('pbasal', mfls, [p_basal])
 
     if 'top' in ins.p_bound:
-        md_init.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 5, dataname='patm')
+        md_init.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='patm')
     else:
-        md_init.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 5, dataname='pbasal')
+        md_init.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pbasal')
 
     if (not ins.free_surface) | ins.solve_air:
         if 'top' in ins.p_bound:
-            md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 5, dataname='patm')
+            md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='patm')
         else:
-            md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 5, dataname='pbasal')
+            md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pbasal')
     else:
         md.add_Dirichlet_condition_with_multipliers(mim_surf, 'p', 1, -1, dataname='patm')
 
@@ -1038,7 +1017,7 @@ for outfilei in outfiles:
                 data_t = eval('ins.' + bound + '_t') * ones_t
                 dirichlet = True
             if type(eval('ins.' + bound + '_t')) is str:
-                data_t = eval(eval('ins.' + bound + '_t'))
+                data_t = eval(eval('ins.' + bound + '_t').replace('X','x_t').replace('Y','y_t'))
                 dirichlet = True
 
             if dirichlet:
@@ -1049,10 +1028,10 @@ for outfilei in outfiles:
             # Neumann boundaries
             else:
                 if (type(eval('ins.' + bound + '_dt')) is float) or (type(eval('ins.' + bound + '_dt')) is int):
-                    data_t = -eval('ins.' + bound + '_dt') * ones_ls * kappa
+                    data_t = -eval('ins.' + bound + '_dt') * ones_mat * kappa
                 if type(eval('ins.' + bound + '_dt')) is str:
                     data_t = -eval(eval('ins.' + bound + '_dt')) * kappa
-                md.add_initialized_fem_data(bound + 'data_t', mfls, [data_t, data_t])
+                md.add_initialized_fem_data(bound + 'data_t', mfmat, [data_t, data_t])
                 md.add_normal_source_term_brick(mim, 't', bound + 'data_t', i + 1)
 
         # add temperature or flux to free surface (default to temperature if provided)
@@ -1064,13 +1043,13 @@ for outfilei in outfiles:
                 #md.add_Dirichlet_condition_with_multipliers(mim_surf, 't', 2, -1, dataname='surface_temp')
             # fixed temperature flux
             elif (type(ins.surface_flux) is float) or (type(ins.surface_flux) is int):
-                md.add_initialized_fem_data('surface_flux', mft, [ins.surface_flux * ones_t/ins.rho1/ins.cp])
+                md.add_initialized_fem_data('surface_flux', mft, [ins.surface_flux * ones_t/ins.rho1/ins.cp1])
                 md.add_source_term_brick(mim_surf, 't', 'surface_flux', -1)
             # dynamic surface flux
             elif type(ins.surface_flux) is str:
                 surface_flux_budget = ones_t * 0
                 if 'radiation' in ins.surface_flux:
-                    surface_flux_budget += radii_t / ins.rho1 / ins.cp * ins.emissivity * ins.stefan_boltzman * ins.crust_cover * (
+                    surface_flux_budget += radii_t / ins.rho1 / ins.cp1 * ins.emissivity * ins.stefan_boltzman * (1-ins.crust_cover) * (
                         (ins.T0+273) ** 4 - (ins.T_atm+273) ** 4)
                 if 'forced convection' in ins.surface_flux:
                     surface_flux_budget += ins.heat_transfer_coeff * (t_init - ins.T_atm)
@@ -1090,21 +1069,34 @@ for outfilei in outfiles:
                     md.add_initialized_fem_data('basal_flux', mft, [ins.kappa1 * (t_init - ins.basal_temp_i) / radii_t])
                     md.add_source_term_brick(mim_base, 't', 'basal_flux', -1)
 
-    # influx
-    if ins.influx:
-        md.add_initialized_fem_data('influxdata', mfp, [eval(ins.influx_ux) * ones_p0, eval(ins.influx_uy) * ones_p0])
-        md.add_Dirichlet_condition_with_multipliers(mim, 'u', 2, 7,
-                                                    dataname='influxdata')
-        if ins.temp:
-            md.add_initialized_fem_data('influxdata_t', mft, [eval(ins.influx_t) * ones_t])
-            md.add_Dirichlet_condition_with_multipliers(mim, 't', 2, 7,
-                                                        dataname='influxdata_t')
-
     #### Solve ####
     print('Starting solve')
-    if not ins.restart:
-        # initialize pressure and velocity with incompressible, steady stokes
+    if ins.restart:
+        err_u = np.zeros(int(np.ceil(ins.tf / ins.dt) + 1))
+        err_p = np.zeros(int(np.ceil(ins.tf / ins.dt) + 1))
+        err_ls1 = np.zeros(int(np.ceil(ins.tf / ins.dt) + 1))
+        err_d = np.zeros(int(np.ceil(ins.tf / ins.dt) + 1))
+        err_t = np.zeros(int(np.ceil(ins.tf / ins.dt) + 1))
 
+        hf = h5py.File(ins.outfile + '/' + ins.outfile.split('/')[-1] + '.h5', 'r+')
+        del hf['err_u']
+        hf.create_dataset('err_u', data=err_u, maxshape=(None,))
+        del hf['err_p']
+        hf.create_dataset('err_p', data=err_p, maxshape=(None,))
+        del hf['err_d']
+        hf.create_dataset('err_d', data=err_d, maxshape=(None,))
+        if ins.temp:
+            del hf['err_t']
+            hf.create_dataset('err_t', data=err_t, maxshape=(None,))
+        if ins.free_surface:
+            del hf['err_ls1']
+            hf.create_dataset('err_ls1', data=err_ls1, maxshape=(None,))
+
+        u_init = 0*Previous_u
+        d_init = 0*Previous_u
+
+    else:
+        # initialize pressure and velocity with incompressible, steady stokes
         if ins.steady | ins.steady_init:
             md_init.solve('max_res', ins.max_residual, 'max_iter', ins.max_iter, 'noisy')
 
@@ -1127,8 +1119,8 @@ for outfilei in outfiles:
         if ins.vtk:
             mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + numstr + '.vtk', u_init)
             if ins.true_ux:
-                true_u = eval(ins.true_ux.replace('x', 'x_u').replace('y', 'y_u'))
-                true_u[1::2] = eval(ins.true_uy.replace('x', 'x_u').replace('y', 'y_u'))[1::2]
+                true_u = eval(ins.true_ux.replace('X', 'x_u').replace('Y', 'y_u'))
+                true_u[1::2] = eval(ins.true_uy.replace('X', 'x_u').replace('Y', 'y_u'))[1::2]
                 mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_utrue_' + numstr + '.vtk',
                                   true_u)
                 err_u[0] = compute_L2_dist(mfu, u_init, mim, mfu, true_u) / compute_L2_norm(mfu,
@@ -1136,12 +1128,12 @@ for outfilei in outfiles:
             mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + numstr + '.vtk', p_init)
             if ins.true_p:
                 mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ptrue_' + numstr + '.vtk',
-                                  eval(ins.true_p.replace('x', 'x_p').replace('y', 'y_p')))
+                                  eval(ins.true_p.replace('X', 'x_p').replace('Y', 'y_p')))
                 err_p[0] = compute_L2_dist(mfp, p_init, mim, mfp,
-                                                          eval(ins.true_p.replace('x', 'x_p').replace('y',
+                                                          eval(ins.true_p.replace('X', 'x_p').replace('Y',
                                                                                                       'y_p'))) / compute_L2_norm(
                     mfp,
-                    eval(ins.true_p.replace('x', 'x_p').replace('y', 'y_p')), mim)
+                    eval(ins.true_p.replace('X', 'x_p').replace('Y', 'y_p')), mim)
             if ins.free_surface:
                 mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + numstr + '.vtk',
                                    ls1.values(0))
@@ -1169,15 +1161,15 @@ for outfilei in outfiles:
                 if ins.solidification:
                     mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + numstr + '.vtk', d_init)
                     if ins.true_dx:
-                        true_d = eval(ins.true_dx.replace('x', 'x_u').replace('y', 'y_u'))
-                        true_d[1::2] = eval(ins.true_dy.replace('x', 'x_u').replace('y', 'y_u'))[1::2]
+                        true_d = eval(ins.true_dx.replace('X', 'x_u').replace('Y', 'y_u'))
+                        true_d[1::2] = eval(ins.true_dy.replace('X', 'x_u').replace('Y', 'y_u'))[1::2]
                         mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_dtrue_' + numstr + '.vtk',
                                           true_d)
                         err_d[0] = compute_L2_dist(mfu, d_init, mim, mfu, true_d) / compute_L2_norm(mfu,
                                                                                                               true_d,
                                                                                                               mim)
-                        mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_VM_' + numstr + '.vtk',
-                                          compute_isotropic_linearized_Von_Mises_pstrain('d', ins.E, ins.nu, mfp))
+                    mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_VM_' + numstr + '.vtk',
+                                          md.compute_isotropic_linearized_Von_Mises_pstrain('d', 'E', 'nu', mfp))
                     mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_solid_' + numstr + '.vtk', solid)
                     mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls2_' + numstr + '.vtk',
                                       (t_init - Tg) / Tg)
@@ -1189,26 +1181,22 @@ for outfilei in outfiles:
         hf = h5py.File(ins.outfile + '/' + ins.outfile.split('/')[-1] + '.h5', 'w')
         hf.create_dataset('last_u', data=u_init)
         hf.create_dataset('last2_u', data=u_init)
-        hf.create_dataset('err_u', data=err_u)
+        hf.create_dataset('err_u', data=err_u, maxshape=(None,))
         hf.create_dataset('last_p', data=p_init)
         hf.create_dataset('last2_p', data=p_init)
-        hf.create_dataset('err_p', data=err_p)
+        hf.create_dataset('err_p', data=err_p, maxshape=(None,))
         hf.create_dataset('last_d', data=d_init)
         hf.create_dataset('last2_d', data=d_init)
-        hf.create_dataset('err_d', data=err_d)
+        hf.create_dataset('err_d', data=err_d, maxshape=(None,))
         if ins.temp:
             hf.create_dataset('last_T', data=t_init)
             hf.create_dataset('last2_T', data=t_init)
-            hf.create_dataset('err_t', data=err_t)
+            hf.create_dataset('err_t', data=err_t, maxshape=(None,))
         if ins.free_surface:
             hf.create_dataset('last_Ls1', data=ls1.values(0))
             hf.create_dataset('last2_Ls1', data=ls1.values(0))
-            hf.create_dataset('err_ls1', data=err_ls1)
+            hf.create_dataset('err_ls1', data=err_ls1, maxshape=(None,))
             hf.create_dataset('expected_area', data=[0])
-        if ins.temp & ins.solidification:
-            hf.create_dataset('last_Ls2', data=(T_ls - Tg) / Tg)
-        if ins.topography:
-            hf.create_dataset('last_Ls3', data=ls3.values(0))
         hf.create_dataset('last_ti', data=[0])
         hf.close()
 
@@ -1246,6 +1234,7 @@ for outfilei in outfiles:
 
     # Main loop
     for ti in t:
+        print(ti)
         if np.abs(ti - ins.dt)<(ins.dt/100):
             md.set_variable('Previous2_u', u_init)
             md.set_variable('Previous_u', U)
@@ -1337,8 +1326,8 @@ for outfilei in outfiles:
             eta[eta > ins.max_eta] = ins.max_eta
             eta[T_mat <= ins.vftb/(np.log(ins.max_eta)-ins.vfta) - 273 + ins.vftc] = ins.max_eta
             if ins.temp & ins.solidification:
-                T_ls = compute_interpolate_on(mft,T,mfls)
-                ls2.set_values((T_ls - Tg) / Tg)
+                #T_ls = compute_interpolate_on(mft,T,mfls)
+                ls2.set_values((T - Tg) / Tg)
 
         else:
             eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0)).replace('vft','ins.vft').replace('etar','ins.etar')) * ones_mat
@@ -1366,6 +1355,8 @@ for outfilei in outfiles:
 
         md.set_variable('lambda', lam)
         md.set_variable('mu', mu)
+        md.set_variable('E', ins.E*solid)
+        md.set_variable('nu',ins.nu*solid)
 
         # update body force
         if (type(ins.f_x) is type(None)) and (type(ins.f_y) is type(None)):
@@ -1375,14 +1366,14 @@ for outfilei in outfiles:
             if (type(ins.f_x) is float) or (type(ins.f_x) is int):
                 f_xi = ones_mat * ins.f_x
             elif type(ins.f_x) is str:
-                f_xi = eval(ins.f_x.replace('y', 'y_ls').replace('x', 'x_ls'))
+                f_xi = eval(ins.f_x.replace('Y', 'y_ls').replace('X', 'x_ls'))
             elif type(ins.f_x) is type(None):
                 f_xi = ones_mat * 0
 
             if (type(ins.f_y) is float) or (type(ins.f_y) is int):
                 f_yi = ones_mat * ins.f_y
             elif type(ins.f_y) is str:
-                f_yi = eval(ins.f_y.replace('y', 'y_ls').replace('x', 'x_ls'))
+                f_yi = eval(ins.f_y.replace('Y', 'y_ls').replace('X', 'x_ls'))
             elif type(ins.f_y) is type(None):
                 f_yi = ones_mat * 0
 
@@ -1408,9 +1399,8 @@ for outfilei in outfiles:
                 if type(ins.surface_flux) is str:
                     surface_flux_budget = ones_t * 0
                     if 'radiation' in ins.surface_flux:
-                        surface_flux_budget += radii_t / ins.rho1 / ins.cp * ins.emissivity * ins.stefan_boltzman * ins.crust_cover * (
-                            (T+273) ** 4 - (ins.T_atm+273) ** 4)
-                        print(np.mean(surface_flux_budget))
+                        surface_flux_budget += radii_t / ins.rho1 / ins.cp1 * ins.emissivity * ins.stefan_boltzman * (1-ins.crust_cover) * (
+                            (ins.T0+273) ** 4 - (ins.T_atm+273) ** 4)
                     if 'forced convection' in ins.surface_flux:
                         surface_flux_budget += ins.heat_transfer_coeff * (T - ins.T_atm)
                     md.set_variable('surface_flux', [surface_flux_budget * ones_t])
@@ -1462,7 +1452,7 @@ for outfilei in outfiles:
 
 
                 if (np.min(ls2.values(0)) < 0) & (np.max(ls2.values(0)) > 0):
-                    Ls2_ext = sciinterp.griddata(D_ls.transpose(), ls2.values(0),
+                    Ls2_ext = sciinterp.griddata(D_t.transpose(), ls2.values(0),
                                                  np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
                                                  method='nearest')
                     d_ls2 = skfmm.distance(Ls2_ext.reshape(x_grid.shape), dx=[dy, dx])
@@ -1478,7 +1468,7 @@ for outfilei in outfiles:
                 else:
                     d = d_ls2
 
-                if (np.min(ls2.values(0)) < 0) & (np.max(ls2.values(0)) > 0):
+                if (np.min(d) < 0) & (np.max(d) > 0):
                     d, D_ext_x = skfmm.extension_velocities(d, compute_interpolate_on(mfu, D, mfls)[0,:].reshape(x_grid.shape),
                                                               dx=[dy, dx])
                     d, D_ext_y = skfmm.extension_velocities(d, compute_interpolate_on(mfu, D, mfls)[1, :].reshape(x_grid.shape),
@@ -1493,13 +1483,13 @@ for outfilei in outfiles:
                     D_ext[1::2] = D_ext_y[1::2]
 
                 else:
-                    D_ext_x = 0*ones_u
+                    D_ext = 0*ones_u
 
                 md.disable_variable('d')
 
             else:
-                Previous_d = d_init
-                D = d_init
+                Previous_d = 0*u_init
+                D = 0*u_init
 
         if ((round(ti/ins.dt) % ins.noutput == 0) & (ti>=ins.dt)) or (np.abs(ti-ins.tf)<ins.dt):
             print('Time = %g' % ti)
@@ -1508,8 +1498,8 @@ for outfilei in outfiles:
             if ins.vtk:
                 mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + numstr + '.vtk', U)
                 if ins.true_ux:
-                    true_u = eval(ins.true_ux.replace('x', 'x_u').replace('y', 'y_u'))
-                    true_u[1::2] = eval(ins.true_uy.replace('x', 'x_u').replace('y', 'y_u'))[1::2]
+                    true_u = eval(ins.true_ux.replace('X', 'x_u').replace('Y', 'y_u'))
+                    true_u[1::2] = eval(ins.true_uy.replace('X', 'x_u').replace('Y', 'y_u'))[1::2]
                     mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_utrue_' + numstr + '.vtk',
                                       true_u)
                     err_u[int(ti / ins.dt)] = compute_L2_dist(mfu, U, mim, mfu, true_u) / compute_L2_norm(mfu,
@@ -1517,10 +1507,10 @@ for outfilei in outfiles:
                 mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + numstr + '.vtk', P)
                 if ins.true_p:
                     mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ptrue_' + numstr + '.vtk',
-                                       eval(ins.true_p.replace('x','x_p').replace('y','y_p')))
+                                       eval(ins.true_p.replace('X','x_p').replace('Y','y_p')))
                     err_p[int(ti / ins.dt)] = compute_L2_dist(mfp, P, mim, mfp,
-                                                              eval(ins.true_p.replace('x','x_p').replace('y','y_p'))) / compute_L2_norm(mfp,
-                                                              eval(ins.true_p.replace('x','x_p').replace('y','y_p')),mim)
+                                                              eval(ins.true_p.replace('X','x_p').replace('Y','y_p'))) / compute_L2_norm(mfp,
+                                                              eval(ins.true_p.replace('X','x_p').replace('Y','y_p')),mim)
                 if ins.free_surface:
                     mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + numstr + '.vtk',
                                        md.variable('psi'))
@@ -1552,15 +1542,15 @@ for outfilei in outfiles:
                     if ins.solidification:
                         mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + numstr + '.vtk', D)
                         if ins.true_dx:
-                            true_d = eval(ins.true_dx.replace('x', 'x_u').replace('y', 'y_u'))
-                            true_d[1::2] = eval(ins.true_dy.replace('x', 'x_u').replace('y', 'y_u'))[1::2]
+                            true_d = eval(ins.true_dx.replace('X', 'x_u').replace('Y', 'y_u'))
+                            true_d[1::2] = eval(ins.true_dy.replace('X', 'x_u').replace('Y', 'y_u'))[1::2]
                             mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_dtrue_' + numstr + '.vtk',
                                               true_d)
                             err_d[int(ti / ins.dt)] = compute_L2_dist(mfu, D, mim, mfu, true_d) / compute_L2_norm(mfu,
                                                                                                                   true_d,
                                                                                                                   mim)
-                            mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_VM_' + numstr + '.vtk',
-                                              compute_isotropic_linearized_Von_Mises_pstrain('d', ins.E, ins.nu, mfp))
+                        mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_VM_' + numstr + '.vtk',
+                                              md.compute_isotropic_linearized_Von_Mises_pstrain('d', 'E', 'nu', mfp))
                         mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_solid_' + numstr + '.vtk',solid)
                         mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls2_' + numstr + '.vtk',
                                           (T - Tg) / Tg)
@@ -1584,14 +1574,11 @@ for outfilei in outfiles:
                 hf['last2_Ls1'][:] = md.variable('Previous_psi')
                 hf['err_ls1'][:] = err_ls1
                 hf['expected_area'][:] = [expected_area]
-            if ins.temp & ins.solidification:
-                hf['last_Ls2'][:] = (T_ls - Tg) / Tg
-            if ins.topography:
-                hf['last_Ls3'][:] = ls3.values(0)
             hf['last_ti'][:] = [ti]
             hf.close()
 
         if ins.free_surface:
+
             md.enable_variable('psis')
             md.solve('max_res', ins.max_residual, 'max_iter', ins.max_iter, 'noisy')
             md.disable_variable('psis')
@@ -1691,14 +1678,19 @@ for outfilei in outfiles:
             md.solve('max_res', ins.max_residual, 'max_iter', ins.max_iter, 'noisy')
             md.disable_variable('psi')
 
-            # mass conservation correction
+            if ins.influx & ins.fix_ls:
+                psi = md.variable('psi')
+                psi[mfls.basic_dof_on_region(5)] = ls1_init[mfls.basic_dof_on_region(5)]
+                psi[mfls.basic_dof_on_region(1)] = ls1_init[mfls.basic_dof_on_region(1)]
+                md.set_variable('psi',psi)
+
             ls1.set_values(md.variable('psi'))
             itr = 0
             area = 0
-            if ins.influx:
-                d_area = ins.dt * ((ins.influx_right - ins.influx_left) * eval(ins.influx_uy) + (
-                            ins.influx_top - ins.influx_bottom) * eval(ins.influx_ux))
-                expected_area += d_area
+            #if ins.influx:
+            #    d_area = ins.dt * ((ins.influx_right - ins.influx_left) * eval(ins.influx_uy) + (
+            #                ins.influx_top - ins.influx_bottom) * eval(ins.influx_ux))
+            #    expected_area += d_area
             while (np.abs(area - expected_area) / expected_area > 1e-4) & (itr < 10) & (np.min(np.abs(ls1.values(0)[edges_ls]))>=np.sqrt(dx**2 + dy**2)/2):
                 if itr > 0:
                     if ins.topography:
@@ -1759,8 +1751,8 @@ for outfilei in outfiles:
         mls.adapt()
 
     if ins.temp & ins.solidification:
-        T_ls = compute_interpolate_on(mft,T,mfls)
-        ls2.set_values((T_ls - Tg) / Tg)
+        #T_ls = compute_interpolate_on(mft,T,mfls)
+        ls2.set_values((T - Tg) / Tg)
 
     if ins.free_surface | ins.topography:
         mfp_cut.set_partial(eval(ind_p))
@@ -1815,7 +1807,7 @@ for outfilei in outfiles:
                 axi[0].tricontour(x_ls, y_ls, ls1.values(0), levels=[0], colors='k')
 
             if ins.temp & ins.solidification:
-                axi[0].tricontour(x_ls, y_ls, ls2.values(0), levels=[0], colors='k',
+                axi[0].tricontour(x_t, y_t, ls2.values(0), levels=[0], colors='k',
                                   linestyles='--')
         ax[0, 0].set_title('U', fontsize=18)
         ax[0, 1].set_title('V', fontsize=18)

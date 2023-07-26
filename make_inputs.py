@@ -105,6 +105,7 @@ dictionary = {
     "bottom_duy": None,
 
     "influx": False,
+    "fix_ls": True,
     "influx_ux": 0, # velocity in m/s
     "influx_uy": 0,
     "influx_left": 0.225, # position of flux region in m
