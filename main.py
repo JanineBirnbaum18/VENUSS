@@ -15,7 +15,7 @@ from curvature import *
 from math import erf
 from shapely.plotting import plot_polygon
 
-outfiles = ['syracuse_noslip']
+outfiles = ['stefan_variable_sinusoid']
 
 for outfilei in outfiles:
     print(outfilei)
@@ -52,6 +52,7 @@ for outfilei in outfiles:
         else:
             ndecimal = 0
 
+    ti = 0
     if ins.restart:
         try:
             hf = h5py.File(ins.outfile + '/' + ins.outfile.split('/')[-1] + '.h5', 'r+')
@@ -87,6 +88,7 @@ for outfilei in outfiles:
                 err_ls1[:len(err_ls1_i)] = err_ls1_i
                 expected_area = hf.get('expected_area')[:]
             last_ti = hf.get('last_ti')[:]
+            ti = last_ti
             print(last_ti)
             hf.close()
         except Exception as e:
@@ -553,7 +555,7 @@ for outfilei in outfiles:
             if (type(ins.T_init) is float) or (type(ins.T_init) is int):
                 t_init = mft.eval('1') * ins.T_init
             elif type(ins.T_init) is str:
-                t_init = eval(ins.T_init.replace('X','x_t').replace('Y','y_t'))
+                t_init = eval(ins.T_init.replace('X','x_t').replace('Y','y_t')) * ones_t
             elif type(ins.T_init) is type(None):
                 t_init = mft.eval('1') * ins.T0
                 if ins.free_surface:
@@ -744,6 +746,7 @@ for outfilei in outfiles:
 
     linear_elastic = "((lambda*(Div_u*Div_Test_u) + mu*((Grad_u + Grad_u'):Grad_Test_u)))"
     linear_elastic_init = "BDFf*(Previous_lambda*(Div_Previous_u*Div_Test_u) + Previous_mu*((Grad_Previous_u + Grad_Previous_u'):Grad_Test_u))"
+    md.add_nonlinear_term(mim, "Grad_p.Test_u + BDFf*Grad_Previous_p.Test_u")
 
     if ins.temp & ins.solidification:
         md.add_nonlinear_term(mim, linear_elastic + '*(dt/BDF0*solid + (1-solid))')
@@ -886,14 +889,14 @@ for outfilei in outfiles:
         if (type(ins.f_x) is float) or (type(ins.f_x) is int):
             f_xi = ones_mat * ins.f_x
         elif type(ins.f_x) is str:
-            f_xi = eval(ins.f_x.replace('Y', 'y_ls').replace('X', 'x_ls'))
+            f_xi = eval(ins.f_x.replace('Y', 'y_ls').replace('X', 'x_ls')) * ones_mat
         elif type(ins.f_x) is type(None):
             f_xi = ones_mat * 0
 
         if (type(ins.f_y) is float) or (type(ins.f_y) is int):
             f_yi = ones_mat * ins.f_y
         elif type(ins.f_y) is str:
-            f_yi = eval(ins.f_y.replace('Y', 'y_ls').replace('X', 'x_ls'))
+            f_yi = eval(ins.f_y.replace('Y', 'y_ls').replace('X', 'x_ls')) * ones_mat
         elif type(ins.f_y) is type(None):
             f_yi = ones_mat * 0
 
@@ -916,7 +919,7 @@ for outfilei in outfiles:
                 H[0,0] = 1
                 dirichlet = True
             if type(eval('ins.' + bound + '_' + var + 'x')) is str:
-                data_x = eval(eval('ins.' + bound + '_' + var + 'x').replace('X','x_p').replace('Y','y_p'))
+                data_x = eval(eval('ins.' + bound + '_' + var + 'x').replace('X','x_p').replace('Y','y_p')) * ones_p0
                 dirichlet = True
                 H[0,0] = 1
             if type(eval('ins.' + bound + '_' + var + 'y')) is type(None):
@@ -927,7 +930,7 @@ for outfilei in outfiles:
                 dirichlet = True
                 H[1,1] = 1
             if type(eval('ins.' + bound + '_' + var + 'y')) is str:
-                data_y = eval(eval('ins.' + bound + '_' + var + 'y').replace('X','x_p').replace('Y','y_p'))
+                data_y = eval(eval('ins.' + bound + '_' + var + 'y').replace('X','x_p').replace('Y','y_p')) * ones_p0
                 dirichlet = True
                 H[1,1] = 1
             if type(eval('ins.' + bound + '_' + var + 'x')) is type(None):
@@ -951,14 +954,14 @@ for outfilei in outfiles:
                 if (type(eval('ins.' + bound + '_d' + var + 'x')) is float) or (type(eval('ins.' + bound + '_d' + var + 'x')) is int):
                     data_dx = eval('ins.' + bound + '_d' + var + 'x') * ones_u
                 if type(eval('ins.' + bound + '_d' + var + 'x')) is str:
-                    data_dx = eval(eval('ins.' + bound + '_d' + var + 'x'))
+                    data_dx = eval(eval('ins.' + bound + '_d' + var + 'x')) * ones_u
                 if type(eval('ins.' + bound + '_d' + var + 'y')) is type(None):
                     data_dy = 0 * ones_u
 
                 if (type(eval('ins.' + bound + '_d' + var + 'y')) is float) or (type(eval('ins.' + bound + '_d' + var + 'y')) is int):
                     data_dy = eval('ins.' + bound + '_d' + var + 'y') * ones_u
                 if type(eval('ins.' + bound + '_d' + var + 'y')) is str:
-                    data_dy = eval(eval('ins.' + bound + '_d' + var + 'y'))
+                    data_dy = eval(eval('ins.' + bound + '_d' + var + 'y')) * ones_u
                 if type(eval('ins.' + bound + '_d' + var + 'x')) is type(None):
                     data_dx = 0 * ones_u
 
@@ -970,7 +973,6 @@ for outfilei in outfiles:
                     md_init.add_normal_source_term_brick(mim_all, var, bound + 'data_' + var, i + 1)
 
     # add pressure on boundary or free surface
-
     p_basal = ins.p_atm * ones_ls
     if ins.topography:
         p_basal -= ls3.values(0)*ins.rho3*9.81
@@ -1017,7 +1019,7 @@ for outfilei in outfiles:
                 data_t = eval('ins.' + bound + '_t') * ones_t
                 dirichlet = True
             if type(eval('ins.' + bound + '_t')) is str:
-                data_t = eval(eval('ins.' + bound + '_t').replace('X','x_t').replace('Y','y_t'))
+                data_t = eval(eval('ins.' + bound + '_t').replace('X','x_t').replace('Y','y_t')) * ones_t
                 dirichlet = True
 
             if dirichlet:
@@ -1366,18 +1368,97 @@ for outfilei in outfiles:
             if (type(ins.f_x) is float) or (type(ins.f_x) is int):
                 f_xi = ones_mat * ins.f_x
             elif type(ins.f_x) is str:
-                f_xi = eval(ins.f_x.replace('Y', 'y_ls').replace('X', 'x_ls'))
+                f_xi = eval(ins.f_x.replace('Y', 'y_ls').replace('X', 'x_ls')) * ones_mat
             elif type(ins.f_x) is type(None):
                 f_xi = ones_mat * 0
 
             if (type(ins.f_y) is float) or (type(ins.f_y) is int):
                 f_yi = ones_mat * ins.f_y
             elif type(ins.f_y) is str:
-                f_yi = eval(ins.f_y.replace('Y', 'y_ls').replace('X', 'x_ls'))
+                f_yi = eval(ins.f_y.replace('Y', 'y_ls').replace('X', 'x_ls')) * ones_mat
             elif type(ins.f_y) is type(None):
                 f_yi = ones_mat * 0
 
             md.set_variable('body', [f_xi, f_yi])
+
+        # update BCs
+        vars = ['u']
+        for var in vars:
+            for i, bound in enumerate(bounds):
+                # Dirichlet boundaries
+                dirichlet = False
+                if (type(eval('ins.' + bound + '_' + var + 'x')) is float) or (
+                        type(eval('ins.' + bound + '_' + var + 'x')) is int):
+                    data_x = eval('ins.' + bound + '_' + var + 'x') * ones_p0
+                    dirichlet = True
+                if type(eval('ins.' + bound + '_' + var + 'x')) is str:
+                    data_x = eval(eval('ins.' + bound + '_' + var + 'x').replace('X', 'x_p').replace('Y', 'y_p')) * ones_p0
+                    dirichlet = True
+                if type(eval('ins.' + bound + '_' + var + 'y')) is type(None):
+                    data_y = 0 * ones_p0
+
+                if (type(eval('ins.' + bound + '_' + var + 'y')) is float) or (
+                        type(eval('ins.' + bound + '_' + var + 'y')) is int):
+                    data_y = eval('ins.' + bound + '_' + var + 'y') * ones_p0
+                    dirichlet = True
+                if type(eval('ins.' + bound + '_' + var + 'y')) is str:
+                    data_y = eval(eval('ins.' + bound + '_' + var + 'y').replace('X', 'x_p').replace('Y', 'y_p')) * ones_p0
+                    dirichlet = True
+                if type(eval('ins.' + bound + '_' + var + 'x')) is type(None):
+                    data_x = 0 * ones_p0
+
+                if dirichlet:
+                    md.set_variable(bound + 'data_' + var, [data_x, data_y])
+
+                else:
+                    # Neumann boundaries
+                    if (type(eval('ins.' + bound + '_d' + var + 'x')) is float) or (
+                            type(eval('ins.' + bound + '_d' + var + 'x')) is int):
+                        data_dx = eval('ins.' + bound + '_d' + var + 'x') * ones_u
+                    if type(eval('ins.' + bound + '_d' + var + 'x')) is str:
+                        data_dx = eval(eval('ins.' + bound + '_d' + var + 'x')) * ones_u
+                    if type(eval('ins.' + bound + '_d' + var + 'y')) is type(None):
+                        data_dy = 0 * ones_u
+
+                    if (type(eval('ins.' + bound + '_d' + var + 'y')) is float) or (
+                            type(eval('ins.' + bound + '_d' + var + 'y')) is int):
+                        data_dy = eval('ins.' + bound + '_d' + var + 'y') * ones_u
+                    if type(eval('ins.' + bound + '_d' + var + 'y')) is str:
+                        data_dy = eval(eval('ins.' + bound + '_d' + var + 'y')) * ones_u
+                    if type(eval('ins.' + bound + '_d' + var + 'x')) is type(None):
+                        data_dx = 0 * ones_u
+
+                    md.set_variable(bound + 'data_' + var, [data_dx, data_dy])
+
+        p_basal = ins.p_atm * ones_ls
+        if ins.topography:
+            p_basal -= ls3.values(0) * ins.rho3 * 9.81
+        elif ins.free_surface:
+            p_basal -= ls1.values(0) * ins.rho1 * 9.81
+
+        md.set_variable('pbasal', [p_basal])
+
+        if ins.temp:
+            for i, bound in enumerate(bounds):
+                dirichlet = False
+                # Dirichlet boundaries
+                if (type(eval('ins.' + bound + '_t')) is float) or (type(eval('ins.' + bound + '_t')) is int):
+                    data_t = eval('ins.' + bound + '_t') * ones_t
+                    dirichlet = True
+                if type(eval('ins.' + bound + '_t')) is str:
+                    data_t = eval(eval('ins.' + bound + '_t').replace('X', 'x_t').replace('Y', 'y_t')) * ones_t
+                    dirichlet = True
+
+                if dirichlet:
+                    md.set_variable(bound + 'data_t', [data_t])
+
+                # Neumann boundaries
+                else:
+                    if (type(eval('ins.' + bound + '_dt')) is float) or (type(eval('ins.' + bound + '_dt')) is int):
+                        data_t = -eval('ins.' + bound + '_dt') * ones_mat * kappa
+                    if type(eval('ins.' + bound + '_dt')) is str:
+                        data_t = -eval(eval('ins.' + bound + '_dt')) * kappa
+                    md.set_variable(bound + 'data_t', [data_t, data_t])
 
         # update surface flux
         if ins.temp:
