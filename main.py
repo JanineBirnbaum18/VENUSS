@@ -15,7 +15,7 @@ from curvature import *
 from math import erf
 from shapely.plotting import plot_polygon
 
-outfiles = ['stefan_variable_sinusoid']
+outfiles = ['compressible']
 
 for outfilei in outfiles:
     print(outfilei)
@@ -123,13 +123,13 @@ for outfilei in outfiles:
 
         # boundary 7
         if 'bottom_left' in ins.p_bound:
-            fb_p = mesh.outer_faces_in_box([-dx, -dy], [dx, dy])
+            fb_p = mesh.outer_faces_in_box([-dx/2, -dy/2], [dx/2, dy/2])
         if 'bottom_right' in ins.p_bound:
-            fb_p = mesh.outer_faces_in_box([ins.L_x-dx, -dy], [ins.L_x+dx, dy])
+            fb_p = mesh.outer_faces_in_box([ins.L_x-dx/2, -dy/2], [ins.L_x+dx/2, dy/2])
         if 'top_left' in ins.p_bound:
-            fb_p = mesh.outer_faces_in_box([-dx, ins.L_y-dy], [dx, ins.L_y+dy])
+            fb_p = mesh.outer_faces_in_box([-dx/2, ins.L_y-dy/2], [dx/2, ins.L_y+dy/2])
         if 'top_right' in ins.p_bound:
-            fb_p = mesh.outer_faces_in_box([ins.L_x-dx, ins.L_y-dy], [ins.L_x+dx, ins.L_y+dy])
+            fb_p = mesh.outer_faces_in_box([ins.L_x-dx/2, ins.L_y-dy/2], [ins.L_x+dx/2, ins.L_y+dy/2])
 
         if ins.influx:
             #fb_influx = mesh.faces_from_cvid(mesh.convexes_in_box((ins.influx_left, ins.influx_bottom),
@@ -476,7 +476,7 @@ for outfilei in outfiles:
 
     else:
         u_init = ones_u * 0
-        p_init = ones_p0 * ins.p_atm
+        p_init = ones_p0 * ins.p_amb
         d_init = ones_u * 0
         md.add_initialized_fem_data('Previous_u', mfu, u_init)
         md.add_initialized_fem_data('Previous2_u', mfu, u_init)
@@ -511,8 +511,8 @@ for outfilei in outfiles:
     md.add_initialized_fem_data('Previous2_rho', mfmat, rho)
     md.add_initialized_fem_data('rho_init', mfmat, rho)
     md_init.add_initialized_fem_data('rho', mfmat, rho)
-    md.add_initialized_fem_data('patm', mfp0, [ins.p_atm * ones_p0])
-    md_init.add_initialized_fem_data('patm', mfp0, [ins.p_atm * ones_p0])
+    md.add_initialized_fem_data('pamb', mfp0, [ins.p_amb * ones_p0])
+    md_init.add_initialized_fem_data('pamb', mfp0, [ins.p_amb * ones_p0])
 
     # Compressibility
     beta = ones_mat * ins.beta1
@@ -560,10 +560,10 @@ for outfilei in outfiles:
                 t_init = mft.eval('1') * ins.T0
                 if ins.free_surface:
                     ls1_t = compute_interpolate_on(mfls,ls1.values(0),mft)
-                    t_init[ls1_t > np.sqrt(dx**2 + dy**2)/20] = ins.T_atm
+                    t_init[ls1_t > np.sqrt(dx**2 + dy**2)/20] = ins.T_amb
                 if ins.topography:
                     ls3_t = compute_interpolate_on(mfls, ls3.values(0), mft)
-                    t_init[ls3_t < 0] = ins.T_atm
+                    t_init[ls3_t < 0] = ins.T_amb
 
             md.add_initialized_fem_data('Previous_t', mft, t_init)
             md.add_initialized_fem_data('Previous2_t', mft, t_init)
@@ -679,8 +679,8 @@ for outfilei in outfiles:
                                     sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), curvature.flatten(),
                                            D_ls.transpose(),
                                            method='nearest').flatten())
-    md.add_initialized_data('surface_tension',ins.surface_tension)
-    md_init.add_initialized_data('surface_tension',ins.surface_tension)
+    #md.add_initialized_data('surface_tension',ins.surface_tension)
+    #md_init.add_initialized_data('surface_tension',ins.surface_tension)
 
     # Define variables and weak forms
 
@@ -696,15 +696,19 @@ for outfilei in outfiles:
 
     # compressible mass balance
     if ins.compressible:
-        md.add_macro('rhof', 'rho*exp(beta*(p-patm))')
-        md.add_macro('Previous_rhof', 'Previous_rho*exp(beta*(Previous_p-patm))')
-        md.add_macro('Previous2_rhof', 'Previous2_rho*exp(beta*(Previous2_p-patm))')
+        md.add_macro('rhof', 'rho*exp(beta*(p-pamb))')
+        md.add_macro('Previous_rhof', 'Previous_rho*exp(beta*(Previous_p-pamb))')
+        md.add_macro('Previous2_rhof', 'Previous2_rho*exp(beta*(Previous2_p-pamb))')
+
+        #md.add_macro('rhof', 'rho*(1 + beta*(p-pamb))')
+        #md.add_macro('Previous_rhof', 'Previous_rho*(1 + beta*(Previous_p-pamb))')
+        #md.add_macro('Previous2_rhof', 'Previous2_rho*(1 + beta*(Previous2_p-pamb))')
 
         time_int_p = '(BDF0*rhof+BDF1*Previous_rhof+BDF2*Previous2_rhof)/dt'
 
         md.add_nonlinear_term(mim, time_int_p + '*Test_p')
         md.add_nonlinear_term(mim, 'Trace(Grad(rhof*u))*Test_p')
-        md.add_nonlinear_term(mim, 'BDFf*Trace(Grad(rhof*u))*Test_p')
+        md.add_nonlinear_term(mim, 'BDFf*Trace(Grad(Previous_rhof*Previous_u))*Test_p')
         if 'SUPG' in ins.stab_p:
             S_SUPG_p = "(Trace(Grad(rhof*u))*(u.Grad_Test_p))"
             tau_SUPG_p = '1/(2/dt + 2*Norm(u)/h)'
@@ -736,6 +740,7 @@ for outfilei in outfiles:
     # mometum balance
     if ins.compressible:
         time_int_u = "(rhof*(BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u)"
+        md.add_nonlinear_term(mim, "Grad_p.Test_u + BDFf*Grad_Previous_p.Test_u")
     else:
         time_int_u = "rho*((BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u)"
 
@@ -746,7 +751,6 @@ for outfilei in outfiles:
 
     linear_elastic = "((lambda*(Div_u*Div_Test_u) + mu*((Grad_u + Grad_u'):Grad_Test_u)))"
     linear_elastic_init = "BDFf*(Previous_lambda*(Div_Previous_u*Div_Test_u) + Previous_mu*((Grad_Previous_u + Grad_Previous_u'):Grad_Test_u))"
-    md.add_nonlinear_term(mim, "Grad_p.Test_u + BDFf*Grad_Previous_p.Test_u")
 
     if ins.temp & ins.solidification:
         md.add_nonlinear_term(mim, linear_elastic + '*(dt/BDF0*solid + (1-solid))')
@@ -873,7 +877,7 @@ for outfilei in outfiles:
             md.add_nonlinear_term(mim, tau_GLS_d + '*' + S_GlS_d)
 
             tau_GLS_d_init = "BDFf/(2/dt + 2*Norm(Previous_u)/h)"
-            S_GLS_d_init = "- Preivous_u.(Trace(Grad(Previous_u.Test_d)))"
+            S_GLS_d_init = "- Previous_u.(Trace(Grad(Previous_u.Test_d)))"
             md.add_nonlinear_term(mim, tau_GLS_d_init + '*' + time_int_d + '.(Trace(Grad(Preivous_u.Test_d))')
             md.add_nonlinear_term(mim, tau_GLS_d_init + '*' + S_GlS_d_init)
 
@@ -889,6 +893,7 @@ for outfilei in outfiles:
         if (type(ins.f_x) is float) or (type(ins.f_x) is int):
             f_xi = ones_mat * ins.f_x
         elif type(ins.f_x) is str:
+            P_mat = ins.p_amb*ones_mat
             f_xi = eval(ins.f_x.replace('Y', 'y_ls').replace('X', 'x_ls')) * ones_mat
         elif type(ins.f_x) is type(None):
             f_xi = ones_mat * 0
@@ -896,6 +901,7 @@ for outfilei in outfiles:
         if (type(ins.f_y) is float) or (type(ins.f_y) is int):
             f_yi = ones_mat * ins.f_y
         elif type(ins.f_y) is str:
+            P_mat = ins.p_amb * ones_mat
             f_yi = eval(ins.f_y.replace('Y', 'y_ls').replace('X', 'x_ls')) * ones_mat
         elif type(ins.f_y) is type(None):
             f_yi = ones_mat * 0
@@ -973,7 +979,7 @@ for outfilei in outfiles:
                     md_init.add_normal_source_term_brick(mim_all, var, bound + 'data_' + var, i + 1)
 
     # add pressure on boundary or free surface
-    p_basal = ins.p_atm * ones_ls
+    p_basal = ins.p_amb * ones_ls
     if ins.topography:
         p_basal -= ls3.values(0)*ins.rho3*9.81
     elif ins.free_surface:
@@ -983,17 +989,17 @@ for outfilei in outfiles:
     md_init.add_initialized_fem_data('pbasal', mfls, [p_basal])
 
     if 'top' in ins.p_bound:
-        md_init.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='patm')
+        md_init.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pamb')
     else:
         md_init.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pbasal')
 
     if (not ins.free_surface) | ins.solve_air:
         if 'top' in ins.p_bound:
-            md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='patm')
+            md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pamb')
         else:
             md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pbasal')
     else:
-        md.add_Dirichlet_condition_with_multipliers(mim_surf, 'p', 1, -1, dataname='patm')
+        md.add_Dirichlet_condition_with_multipliers(mim_surf, 'p', 1, -1, dataname='pamb')
 
     if ins.topography:
         if 'no_slip' in ins.basal_velocity:
@@ -1052,9 +1058,9 @@ for outfilei in outfiles:
                 surface_flux_budget = ones_t * 0
                 if 'radiation' in ins.surface_flux:
                     surface_flux_budget += radii_t / ins.rho1 / ins.cp1 * ins.emissivity * ins.stefan_boltzman * (1-ins.crust_cover) * (
-                        (ins.T0+273) ** 4 - (ins.T_atm+273) ** 4)
+                        (ins.T0+273) ** 4 - (ins.T_amb+273) ** 4)
                 if 'forced convection' in ins.surface_flux:
-                    surface_flux_budget += ins.heat_transfer_coeff * (t_init - ins.T_atm)
+                    surface_flux_budget += ins.heat_transfer_coeff * (t_init - ins.T_amb)
                 md.add_initialized_fem_data('surface_flux', mft, [surface_flux_budget * ones_t])
                 md.add_source_term_brick(mim_surf, 't', 'surface_flux', -1)
 
@@ -1368,6 +1374,7 @@ for outfilei in outfiles:
             if (type(ins.f_x) is float) or (type(ins.f_x) is int):
                 f_xi = ones_mat * ins.f_x
             elif type(ins.f_x) is str:
+                P_mat = compute_interpolate_on(mfmat,P,mfp)
                 f_xi = eval(ins.f_x.replace('Y', 'y_ls').replace('X', 'x_ls')) * ones_mat
             elif type(ins.f_x) is type(None):
                 f_xi = ones_mat * 0
@@ -1375,6 +1382,7 @@ for outfilei in outfiles:
             if (type(ins.f_y) is float) or (type(ins.f_y) is int):
                 f_yi = ones_mat * ins.f_y
             elif type(ins.f_y) is str:
+                P_mat = compute_interpolate_on(mfmat,P,mfp)
                 f_yi = eval(ins.f_y.replace('Y', 'y_ls').replace('X', 'x_ls')) * ones_mat
             elif type(ins.f_y) is type(None):
                 f_yi = ones_mat * 0
@@ -1430,7 +1438,7 @@ for outfilei in outfiles:
 
                     md.set_variable(bound + 'data_' + var, [data_dx, data_dy])
 
-        p_basal = ins.p_atm * ones_ls
+        p_basal = ins.p_amb * ones_ls
         if ins.topography:
             p_basal -= ls3.values(0) * ins.rho3 * 9.81
         elif ins.free_surface:
@@ -1481,9 +1489,9 @@ for outfilei in outfiles:
                     surface_flux_budget = ones_t * 0
                     if 'radiation' in ins.surface_flux:
                         surface_flux_budget += radii_t / ins.rho1 / ins.cp1 * ins.emissivity * ins.stefan_boltzman * (1-ins.crust_cover) * (
-                            (ins.T0+273) ** 4 - (ins.T_atm+273) ** 4)
+                            (ins.T0+273) ** 4 - (ins.T_amb+273) ** 4)
                     if 'forced convection' in ins.surface_flux:
-                        surface_flux_budget += ins.heat_transfer_coeff * (T - ins.T_atm)
+                        surface_flux_budget += ins.heat_transfer_coeff * (T - ins.T_amb)
                     md.set_variable('surface_flux', [surface_flux_budget * ones_t])
 
             if ins.topography:
@@ -1507,12 +1515,12 @@ for outfilei in outfiles:
         U[eval(ind_u)] = md.variable('u')
 
         Previous_p = P
-        P =  ones_p * ins.p_atm
+        P =  ones_p * ins.p_amb
         P[eval(ind_p)] = md.variable('p')
 
         if ins.temp:
             Previous_t = T
-            T = ones_t * ins.T_atm
+            T = ones_t * ins.T_amb
             T[eval(ind_t)] = md.variable('t')
 
         md.disable_variable('u')

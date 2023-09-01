@@ -3,7 +3,7 @@ import os
 import shutil
 import numpy as np
 
-h = 59
+h = 30
 dt = 0.01
 
 dictionary = {
@@ -41,27 +41,27 @@ dictionary = {
     "ls3s": None,
 
     # Pressure
-    "compressible": False,
+    "compressible": True,
     "steady": True,
     "steady_init": True,
-    "p_atm": 0, # atmospheric pressure (Pa)
+    "p_amb": 0, # ambient pressure (Pa)
     "p_bound": 'top_left',
     "rho1": 2500, # density where ls1p<0 (lava) (kg/m3)
     "rho2": 1, # density where ls1p>0 (air) (kg/m3)
     "rho3": 3000, # density where ls3p<0 (ground) (kg/m3)
 
-    "beta1": 1e-10, # compressibility (1/Pa)
+    "beta1": 1e-5, # compressibility (1/Pa)
     "beta2": 1e-10,
     "beta3": 1e-10,
 
-    "surface_tension": 0.36, # surface tension in N/m
+    #"surface_tension": 0.36, # surface tension in N/m
 
     # Temperature
-    "temp": True,
+    "temp": False,
     "solidification": True,
     "T0": 1000, # lava temperature (deg C)
     "T_init": None, # initial temperature field, None sets initial lava temperature to T0
-    "T_atm": 0, # initial atmospheric temperature (deg C)
+    "T_amb": 0, # initial ambient temperature (deg C)
     "basal_temp_i": 50, # initial basal temperature in deg C
     "kappa1": 1, # thermal diffusivity (m2/s)
     "kappa2": 1e-7,
@@ -91,23 +91,23 @@ dictionary = {
 
     # Body force, velocity boundary conditions
     "f_x": None, # body force (N/m3)
-    "f_y": None,
+    "f_y": "-rho*exp(beta*(P_mat-ins.p_amb))*9.81",
     "left_ux": 0, # Dirichlet velocity condition (m/s) as float,str,or None
-    "left_uy": 0,
+    "left_uy": None,
     "left_dux": None, # Neumann velocity condition (1/s)
-    "left_duy": None,
+    "left_duy": 0,
     "right_ux": 0,
-    "right_uy": 0.001,
+    "right_uy": None,
     "right_dux": None,
-    "right_duy": None,
+    "right_duy": 0,
     "top_ux": 0,
     "top_uy": None,
     "top_dux": None,
     "top_duy": 0,
     "bottom_ux": 0,
-    "bottom_uy": None,
+    "bottom_uy": 0,
     "bottom_dux": None,
-    "bottom_duy": 0,
+    "bottom_duy": None,
 
     "influx": False,
     "fix_ls": True,
@@ -121,7 +121,7 @@ dictionary = {
     "basal_velocity": 'no_slip', # 'no_slip' or 'no_normal'
 
     # Temp boundary conditions
-    "left_t": 'np.sin(ti*np.pi*2)*500 + 500', # Dirichlet temperature condition (deg C) as float,str, or None
+    "left_t": 1000, # Dirichlet temperature condition (deg C) as float,str, or None
     "left_dt": None, # Neumann temperature condition (deg C/m)
     "right_t": 1000,
     "right_dt": None,
@@ -156,7 +156,7 @@ dictionary = {
     "max_iter": 10,
 
     # output options
-    "outfile": './Results/stefan_variable_sinusoid',
+    "outfile": './Results/compressible',
     "noutput": 1, # number of timesteps between output
     "ndigits": 5,
     "vtk": True,
