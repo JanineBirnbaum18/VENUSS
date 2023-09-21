@@ -441,8 +441,8 @@ for outfilei in outfiles:
         if np.min(np.abs(ls1.values(0)[edges_ls]))<np.sqrt(dx**2 + dy**2):
             area_init = 1
         else:
-            area_init = 1
-            #area_init = alphashape.alphashape(pts.transpose(), 2 * np.sqrt(dx ** 2 + dy ** 2)).area
+            #area_init = 1
+            area_init = alphashape.alphashape(pts.transpose(), 2 * np.sqrt(dx ** 2 + dy ** 2)).area
     # drop dof outside region of interest
     if ins.free_surface | ins.topography:
         mfp_cut = gf.MeshFem('partial', mfp, np.arange(mfp.nbdof()))
@@ -1239,8 +1239,8 @@ for outfilei in outfiles:
                                      np.abs(ls3_interface) <= np.sqrt(dx ** 2 + dy ** 2) / 100))]
             else:
                 pts = pts[:, ((np.abs(ls1_interface) <= np.sqrt(dx ** 2 + dy ** 2) / 100))]
-            #expected_area = alphashape.alphashape(pts.transpose(), 2 * np.sqrt(dx ** 2 + dy ** 2)).area
-            expected_area = 1
+            expected_area = alphashape.alphashape(pts.transpose(), 2 * np.sqrt(dx ** 2 + dy ** 2)).area
+            #expected_area = 1
         else:
             expected_area = 1
 
