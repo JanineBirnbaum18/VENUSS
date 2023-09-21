@@ -3,17 +3,14 @@ import os
 import shutil
 import numpy as np
 
-h = 30
-dt = 0.01
-
 dictionary = {
     # mesh geometry
     "ndim": 2,
     "L_x": 1, # length of boundaries (m)
-    "L_y": 1,
+    "L_y": 0.5,
     "L_z": 1,
-    "nx": h, # number of elements
-    "ny": h,
+    "nx": 59, # number of elements
+    "ny": 44,
     "etype": "cartesian", # element type cartesian, triangles grid, etc.
 
     # basis functions
@@ -25,9 +22,9 @@ dictionary = {
     "mat_k": 1,
 
     # initial free surface level set
-    "free_surface": False,
+    "free_surface": True,
     "solve_air": True,
-    "ls1p": "(x - 0.5)*(x - 0.5) + (y)*(y) - 0.2*0.2", # String using x,y,and z in m
+    "ls1p": "(x - 0.5)*(x - 0.5) + (y - 0.15)*(y - 0.15) - 0.2*0.2", # String using x,y,and z in m
     "ls1s": None,
 
     # initial temperature level set
@@ -35,54 +32,53 @@ dictionary = {
     "ls2s": None,
 
     # topography level set
-    "topography": False,
+    "topography": True,
     "solve_topography": True,
-    "ls3p": "y-0.25",
+    "ls3p": "y-0.15",
     "ls3s": None,
 
     # Pressure
-    "compressible": True,
+    "compressible": False,
     "steady": True,
     "steady_init": True,
     "p_amb": 0, # ambient pressure (Pa)
+    "p_basal": False,
     "p_bound": 'top_left',
     "rho1": 2500, # density where ls1p<0 (lava) (kg/m3)
     "rho2": 1, # density where ls1p>0 (air) (kg/m3)
     "rho3": 3000, # density where ls3p<0 (ground) (kg/m3)
 
-    "beta1": 1e-5, # compressibility (1/Pa)
+    "beta1": 1e-10, # compressibility (1/Pa)
     "beta2": 1e-10,
     "beta3": 1e-10,
 
-    #"surface_tension": 0.36, # surface tension in N/m
-
     # Temperature
-    "temp": False,
-    "solidification": True,
+    "temperature": True,
+    "solidification": False,
     "T0": 1000, # lava temperature (deg C)
-    "T_init": None, # initial temperature field, None sets initial lava temperature to T0
     "T_amb": 0, # initial ambient temperature (deg C)
+    "T_init": None, # initial temperature field, None sets initial lava temperature to T0
     "basal_temp_i": 50, # initial basal temperature in deg C
-    "kappa1": 1, # thermal diffusivity (m2/s)
-    "kappa2": 1e-7,
+    "kappa1": 1e-7, # thermal diffusivity (m2/s)
+    "kappa2": 1e-5,
     "kappa3": 1e-8,
     "cp1": 1200, # heat capacity in J/KgK
     "cp2": 1200, # heat capacity in J/KgK
     "cp3": 1200, # heat capacity in J/KgK
     "emissivity": 0.93,
-    "stefan_boltzman": 5.67*1e-8, # (W/m2K4)
+    "stefan_boltzmann": 5.67*1e-8, # (W/m2K4)
     "crust_cover": 0.75, # surface area fraction
     "heat_transfer_coeff": 1e-9, # in air (W/m2K)
 
     # Viscosity
     "eta_exp": "etar*exp(vfta + vftb/(T + 273 - vftc))", # (Pas)
-    "vfta": -4.55,#3.45,
-    "vftb": 5000,#633.2,
-    "vftc": 886.0,#450.0+273,
+    "vfta": 4.605170185988092,#3.45,
+    "vftb": 0,#633.2,
+    "vftc": 0,#450.0+273,
     "etar": 1, # relative viscosity
-    "Tg": 786, # (deg C)
+    "Tg": 1000, # (deg C)
     "max_eta": 1e12, # (Pas)
-    "eta2": 100, # (Pas)
+    "eta2": 1, # (Pas)
     "eta3": 1e12,
 
     # Elastic properties
@@ -91,15 +87,15 @@ dictionary = {
 
     # Body force, velocity boundary conditions
     "f_x": None, # body force (N/m3)
-    "f_y": "-rho*exp(beta*(P_mat-ins.p_amb))*9.81",
-    "left_ux": 0, # Dirichlet velocity condition (m/s) as float,str,or None
-    "left_uy": None,
-    "left_dux": None, # Neumann velocity condition (1/s)
-    "left_duy": 0,
-    "right_ux": 0,
-    "right_uy": None,
-    "right_dux": None,
-    "right_duy": 0,
+    "f_y": '-rho*9.81',#"-rho*exp(beta*(P_mat-ins.p_amb))*9.81",
+    "left_ux": None, # Dirichlet velocity condition (m/s) as float,str,or None
+    "left_uy": 0,
+    "left_dux": 0, # Neumann velocity condition (1/s)
+    "left_duy": None,
+    "right_ux": None,
+    "right_uy": 0,
+    "right_dux": 0,
+    "right_duy": None,
     "top_ux": 0,
     "top_uy": None,
     "top_dux": None,
@@ -111,6 +107,7 @@ dictionary = {
 
     "influx": False,
     "fix_ls": True,
+    "fix_ls_bound": 'left',
     "influx_ux": '0', # velocity in m/s
     "influx_uy": '0.01',
     "influx_left": 0.475, # position of flux region in m
@@ -120,10 +117,10 @@ dictionary = {
 
     "basal_velocity": 'no_slip', # 'no_slip' or 'no_normal'
 
-    # Temp boundary conditions
-    "left_t": 1000, # Dirichlet temperature condition (deg C) as float,str, or None
+    # Temperature boundary conditions
+    "left_t": 0, # Dirichlet temperature condition (deg C) as float,str, or None
     "left_dt": None, # Neumann temperature condition (deg C/m)
-    "right_t": 1000,
+    "right_t": 0,
     "right_dt": None,
     "top_t": None,
     "top_dt": 0,
@@ -139,28 +136,28 @@ dictionary = {
     "basal_flux": None, # in W/m2 or 'conduction'
 
     # time discretization
-    "tf": 1, # final time in s
-    "dt": dt, # time step in s
+    "tf": 0.25, # final time in s
+    "dt": 0.001, # time step in s
     "restart": False,
 
     # Solve options
     "stab_p": 'SUPG', # None, GLS, or SUPG for pressure stabilization
-    "stab_psi": 'SUPG', # level set stabilization
+    "stab_psi": 'GLS', # level set stabilization
     "stab_d": 'SUPG', # displacement stabilization
-    "stab_t": 'GLS', # temp stabilization
-    "epsilon_psi": 0.0001, # coefficient for viscous relaxation of free surface where interface velocity F = (1 - visc_coeff*curvature)
+    "stab_t": 'SUPG', # temp stabilization
+    "epsilon_psi": 0.001, # coefficient for viscous relaxation of free surface where interface velocity F = (1 - visc_coeff*curvature)
     "kappa_psi": 1e-6, # diffusion coefficient for curvature calculation
     "ndt0": 10, # number of substeps for BDF bootstrap
 
-    "max_residual": 3e-12,
+    "max_residual": 1e-12,
     "max_iter": 10,
 
     # output options
-    "outfile": './Results/compressible',
+    "outfile": './Results/spreading_drop_ellipse_cartesian',
     "noutput": 1, # number of timesteps between output
-    "ndigits": 5,
+    "ndigits": 3,
     "vtk": True,
-    "viz": 'T_u_and_d.py',
+    "viz": 'basic_viz.py',
     "plots": True,
     "plot_mesh": False,
 

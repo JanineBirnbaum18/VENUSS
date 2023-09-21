@@ -15,7 +15,10 @@ from curvature import *
 from math import erf
 from shapely.plotting import plot_polygon
 
-outfiles = ['compressible']
+outfiles = ['spreading_drop_ellipse_cartesian']
+#for xi in ['30','60','120']:
+#    for dti in ['0.1','0.033','0.01','0.0033']:
+#        outfiles = np.append(outfiles,'surface_relaxation_' + xi + 'x_' + dti + 't')
 
 for outfilei in outfiles:
     print(outfilei)
@@ -36,9 +39,9 @@ for outfilei in outfiles:
     if (type(ins.Tg) is float) or (type(ins.Tg) is int):
         Tg = ins.Tg
     elif type(ins.Tg) is type(str):
-        Tg = eval(ins.Tg.replace('vft', 'ins.vft'))
+        Tg = eval(ins.Tg.replace('vft', 'ins.vft').replace('etar','ins.etar'))
     elif type(ins.Tg) is type(None):
-        Tg = ins.vftc + ins.vftb/(12-ins.vfta) - 273
+        Tg = ins.vftc + ins.vftb/(np.log(10**12)-ins.vfta) - 273
 
     if type(ins.ndigits) == int:
         ndigits = ins.ndigits
@@ -74,7 +77,7 @@ for outfilei in outfiles:
             err_d = np.zeros(int(np.ceil(ins.tf / ins.dt)))
             err_d[:len(err_d_i)] = err_d_i
 
-            if ins.temp:
+            if ins.temperature:
                 T = hf.get('last_T')[:]
                 Previous_t = hf.get('last2_T')[:]
                 err_t_i = hf.get('err_t')[:]
@@ -123,7 +126,7 @@ for outfilei in outfiles:
 
         # boundary 7
         if 'bottom_left' in ins.p_bound:
-            fb_p = mesh.outer_faces_in_box([-dx/2, -dy/2], [dx/2, dy/2])
+            fb_p = mesh.outer_faces_in_box([-dx/2, -dy/2], [dx, dy])
         if 'bottom_right' in ins.p_bound:
             fb_p = mesh.outer_faces_in_box([ins.L_x-dx/2, -dy/2], [ins.L_x+dx/2, dy/2])
         if 'top_left' in ins.p_bound:
@@ -147,7 +150,7 @@ for outfilei in outfiles:
     bounds_type = []
     for i, bound in enumerate(bounds):
         mesh.set_region(i + 1, eval('fb_' + bound))
-        if ins.temp:
+        if ins.temperature:
             bounds_type = np.append(bounds_type, type(eval('ins.' + bound + '_t')))
         else:
             bounds_type = np.append(bounds_type, type(eval('ins.' + bound + '_ux')))
@@ -167,7 +170,7 @@ for outfilei in outfiles:
         mls.add(ls1)
 
     # temperature contour
-    if ins.temp & ins.solidification:
+    if ins.temperature & ins.solidification:
         mls2 = gf.MeshLevelSet(mesh)
         ls2 = gf.LevelSet(mesh, ins.t_k, ins.ls2p, ins.ls2s)
         mls2.add(ls2)
@@ -211,13 +214,13 @@ for outfilei in outfiles:
             for face in eval('fb_' + bound).transpose():
                 edge = mesh.pid_in_faces(CVFIDs=face)
 
-                if ins.temp:
+                if ins.temperature:
                     bound_type = type(eval('ins.' + bound + '_t'))
                 else:
                     bound_type = type(eval('ins.' + bound + '_ux'))
                 if bound_type is not type(None):
                     color = 'r'  # plot Dirichlet bounds on temperature in red
-                    if ins.temp:
+                    if ins.temperature:
                         if lr:
                             label = 'Temp BC'
                             lr = False
@@ -338,7 +341,7 @@ for outfilei in outfiles:
     mfu.set_classical_fem(ins.u_k)  # continuous piecewise quadratic
 
     # temperature
-    if ins.temp:
+    if ins.temperature:
         if ins.t_enrich:
             if ins.free_surface:
                 mft0 = gf.MeshFem(mesh, 1)
@@ -369,12 +372,12 @@ for outfilei in outfiles:
     if ins.free_surface | ins.topography:
         ind_p = 'mfp.basic_dof_from_cv(np.append(mim_integ.convex_index(),mim.convex_index()))'
         ind_u = 'mfu.basic_dof_from_cv(np.append(mim_integ.convex_index(),mim.convex_index()))'
-        if ins.temp:
+        if ins.temperature:
             ind_t = 'mft.basic_dof_from_cv(np.append(mim_integ.convex_index(),mim.convex_index()))'
     else:
         ind_p = 'mfp.basic_dof_from_cv(mim_all.convex_index())'
         ind_u = 'mfu.basic_dof_from_cv(mim_all.convex_index())'
-        if ins.temp:
+        if ins.temperature:
             ind_t = 'mft.basic_dof_from_cv(mim_all.convex_index())'
 
     # get mesh coordinates
@@ -407,7 +410,7 @@ for outfilei in outfiles:
     D_mat = mfmat.basic_dof_nodes()
     ones_mat = np.ones(D_mat.shape[1])
 
-    if ins.temp:
+    if ins.temperature:
         D_t = mft.basic_dof_nodes()
         ones_t = np.ones(D_t.shape[1])
         x_t = D_t[0, :]
@@ -438,17 +441,18 @@ for outfilei in outfiles:
         if np.min(np.abs(ls1.values(0)[edges_ls]))<np.sqrt(dx**2 + dy**2):
             area_init = 1
         else:
-            area_init = alphashape.alphashape(pts.transpose(), 2 * np.sqrt(dx ** 2 + dy ** 2)).area
+            area_init = 1
+            #area_init = alphashape.alphashape(pts.transpose(), 2 * np.sqrt(dx ** 2 + dy ** 2)).area
     # drop dof outside region of interest
     if ins.free_surface | ins.topography:
         mfp_cut = gf.MeshFem('partial', mfp, np.arange(mfp.nbdof()))
         mfu_cut = gf.MeshFem('partial', mfu, np.arange(mfu.nbdof()))
-        if ins.temp:
+        if ins.temperature:
             mft_cut = gf.MeshFem('partial', mft, np.arange(mft.nbdof()))
 
         mfp_cut.set_partial(eval(ind_p))
         mfu_cut.set_partial(eval(ind_u))
-        if ins.temp:
+        if ins.temperature:
             mft_cut.set_partial(eval(ind_t))
 
 
@@ -469,7 +473,7 @@ for outfilei in outfiles:
         md.add_initialized_fem_data('Previous_psi', mfls, last2_Ls1)
         md.add_initialized_fem_data('Previous2_psi', mfls, last_Ls1)
 
-        if ins.temp & ins.solidification:
+        if ins.temperature & ins.solidification:
             #T_ls = compute_interpolate_on(mft, Previous_t, mfls)
             ls2.set_values((T-Tg)/Tg)
 
@@ -524,7 +528,7 @@ for outfilei in outfiles:
     md.add_initialized_fem_data('beta', mfmat, beta)
     md.add_initialized_fem_data('Previous_beta', mfmat, beta)
 
-    if ins.temp:
+    if ins.temperature:
         # Thermal diffusivity
         kappa = ones_mat * ins.kappa1
         if ins.free_surface:
@@ -543,7 +547,7 @@ for outfilei in outfiles:
         md.add_initialized_fem_data('cp', mfmat, cp)
 
     # Temperature
-    if ins.temp:
+    if ins.temperature:
 
         # Initial temp
         if ins.restart:
@@ -604,7 +608,7 @@ for outfilei in outfiles:
     mu = eta
     solid = 0 * ones_mat
 
-    if ins.temp & ins.solidification:
+    if ins.temperature & ins.solidification:
         lam_solid = ins.E * ins.nu / ((1 + ins.nu) * (1 - 2 * ins.nu))
         mu_solid = ins.E / (2 * (1 + ins.nu))
         ls2_mat = compute_interpolate_on(mft,ls2.values(0),mfmat)
@@ -638,12 +642,12 @@ for outfilei in outfiles:
         D_cut = mls_cut.pts()
         for pid in mls_cut.pid():
             radii[pid] = np.min(mls_cut.convex_radius(mls_cut.cvid_from_pid(pid, share=True)))
-        if ins.temp:
+        if ins.temperature:
             radii_t = sciinterp.griddata(D_cut.transpose(), radii, D_t.transpose())
 
     else:
         radii = np.mean(mesh.convex_radius()) * ones_ls
-        if ins.temp:
+        if ins.temperature:
             radii_t = np.mean(mesh.convex_radius()) * ones_t
 
     # Add governing equations
@@ -653,13 +657,13 @@ for outfilei in outfiles:
         md.add_fem_variable('u', mfu_cut)
         md.add_fem_variable('d',mfu_cut)
         md.add_fem_variable('p', mfp_cut)
-        if ins.temp:
+        if ins.temperature:
             md.add_fem_variable('t', mft_cut)
     else:
         md.add_fem_variable('u', mfu)
         md.add_fem_variable('d', mfu)
         md.add_fem_variable('p', mfp)
-        if ins.temp:
+        if ins.temperature:
             md.add_fem_variable('t', mft)
 
     if ins.free_surface:
@@ -696,9 +700,9 @@ for outfilei in outfiles:
 
     # compressible mass balance
     if ins.compressible:
-        md.add_macro('rhof', 'rho*exp(beta*(p-pamb))')
-        md.add_macro('Previous_rhof', 'Previous_rho*exp(beta*(Previous_p-pamb))')
-        md.add_macro('Previous2_rhof', 'Previous2_rho*exp(beta*(Previous2_p-pamb))')
+        md.add_macro('rhof', 'rho*(1 + beta*(p-pamb))')
+        md.add_macro('Previous_rhof', 'Previous_rho*(1 + beta*(Previous_p-pamb))')
+        md.add_macro('Previous2_rhof', 'Previous2_rho*(1 + beta*(Previous2_p-pamb))')
 
         #md.add_macro('rhof', 'rho*(1 + beta*(p-pamb))')
         #md.add_macro('Previous_rhof', 'Previous_rho*(1 + beta*(Previous_p-pamb))')
@@ -752,7 +756,7 @@ for outfilei in outfiles:
     linear_elastic = "((lambda*(Div_u*Div_Test_u) + mu*((Grad_u + Grad_u'):Grad_Test_u)))"
     linear_elastic_init = "BDFf*(Previous_lambda*(Div_Previous_u*Div_Test_u) + Previous_mu*((Grad_Previous_u + Grad_Previous_u'):Grad_Test_u))"
 
-    if ins.temp & ins.solidification:
+    if ins.temperature & ins.solidification:
         md.add_nonlinear_term(mim, linear_elastic + '*(dt/BDF0*solid + (1-solid))')
         md.add_nonlinear_term(mim, linear_elastic_init + '*(dt/BDF0*Previous_solid + (1-Previous_solid))')
 
@@ -802,7 +806,7 @@ for outfilei in outfiles:
         md.disable_variable('psis')
         md.disable_variable('psi')
 
-    if ins.temp:
+    if ins.temperature:
         time_int_t = "(BDF0*t+BDF1*Previous_t+BDF2*Previous2_t)/dt"
         advection_t = "(u.Grad_t)*Test_t"
         advection_t_init = "BDFf*(Previous_u.Grad_Previous_t)*Test_t"
@@ -850,7 +854,7 @@ for outfilei in outfiles:
             md.add_nonlinear_term(mim, tau_GLS_t + '*Grad(' + time_int_t + ').(Previous_kappa*Grad_Test_t)')
             md.add_nonlinear_term(mim, tau_GLS_t_init + '*' + S_GLS_t_init)
 
-    if ins.temp & ins.solidification:
+    if ins.temperature & ins.solidification:
         time_int_d = "((BDF0*d+(BDF1*Previous_d+BDF2*Previous2_d)*Previous_solid)/dt)"
         advection_d = "(u.Grad_Previous_d).Test_d*Previous_solid"
         md.add_nonlinear_term(mim, time_int_d + '.Test_d')
@@ -979,25 +983,24 @@ for outfilei in outfiles:
                     md_init.add_normal_source_term_brick(mim_all, var, bound + 'data_' + var, i + 1)
 
     # add pressure on boundary or free surface
-    p_basal = ins.p_amb * ones_ls
-    if ins.topography:
-        p_basal -= ls3.values(0)*ins.rho3*9.81
-    elif ins.free_surface:
-        p_basal -= ls1.values(0)*ins.rho1*9.81
+    if ins.p_basal:
+        p_basal = ins.p_amb * ones_ls
+        if ins.topography:
+            p_basal -= ls3.values(0)*ins.rho3*9.81
+        elif ins.free_surface:
+            p_basal -= ls1.values(0)*ins.rho1*9.81
 
-    md.add_initialized_fem_data('pbasal', mfls, [p_basal])
-    md_init.add_initialized_fem_data('pbasal', mfls, [p_basal])
-
-    if 'top' in ins.p_bound:
-        md_init.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pamb')
-    else:
+        md.add_initialized_fem_data('pbasal', mfls, [p_basal])
+        md_init.add_initialized_fem_data('pbasal', mfls, [p_basal])
         md_init.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pbasal')
+    else:
+        md_init.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pamb')
 
     if (not ins.free_surface) | ins.solve_air:
-        if 'top' in ins.p_bound:
-            md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pamb')
-        else:
+        if ins.p_basal:
             md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pbasal')
+        else:
+            md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pamb')
     else:
         md.add_Dirichlet_condition_with_multipliers(mim_surf, 'p', 1, -1, dataname='pamb')
 
@@ -1017,7 +1020,7 @@ for outfilei in outfiles:
             md_init.add_normal_source_term_brick(mim_base, 'u', -1, dataname='no_normal')
 
 
-    if ins.temp:
+    if ins.temperature:
         for i, bound in enumerate(bounds):
             dirichlet = False
             # Dirichlet boundaries
@@ -1057,14 +1060,14 @@ for outfilei in outfiles:
             elif type(ins.surface_flux) is str:
                 surface_flux_budget = ones_t * 0
                 if 'radiation' in ins.surface_flux:
-                    surface_flux_budget += radii_t / ins.rho1 / ins.cp1 * ins.emissivity * ins.stefan_boltzman * (1-ins.crust_cover) * (
+                    surface_flux_budget += radii_t / ins.rho1 / ins.cp1 * ins.emissivity * ins.stefan_boltzmann * (1-ins.crust_cover) * (
                         (ins.T0+273) ** 4 - (ins.T_amb+273) ** 4)
                 if 'forced convection' in ins.surface_flux:
                     surface_flux_budget += ins.heat_transfer_coeff * (t_init - ins.T_amb)
                 md.add_initialized_fem_data('surface_flux', mft, [surface_flux_budget * ones_t])
                 md.add_source_term_brick(mim_surf, 't', 'surface_flux', -1)
 
-        if ins.topography:
+        if ins.topography & (not ins.solve_topography):
             # add temperature or flux to flow base (default to temperature if provided)
             if (type(ins.basal_temp) is float) or (type(ins.basal_temp) is int):
                 md.add_initialized_fem_data('basal_temp', mft, [ins.basal_temp * ones_t])
@@ -1074,7 +1077,7 @@ for outfilei in outfiles:
                 md.add_source_term_brick(mim_base, 't', 'basal_flux/Previous_rho/cp', -1)
             elif type(ins.basal_flux) is str:
                 if 'conduction' in ins.basal_flux:
-                    md.add_initialized_fem_data('basal_flux', mft, [ins.kappa1 * (t_init - ins.basal_temp_i) / radii_t])
+                    md.add_initialized_fem_data('basal_flux', mft, [ins.kappa3 * (t_init - ins.basal_temp_i)])
                     md.add_source_term_brick(mim_base, 't', 'basal_flux', -1)
 
     #### Solve ####
@@ -1093,7 +1096,7 @@ for outfilei in outfiles:
         hf.create_dataset('err_p', data=err_p, maxshape=(None,))
         del hf['err_d']
         hf.create_dataset('err_d', data=err_d, maxshape=(None,))
-        if ins.temp:
+        if ins.temperature:
             del hf['err_t']
             hf.create_dataset('err_t', data=err_t, maxshape=(None,))
         if ins.free_surface:
@@ -1156,7 +1159,7 @@ for outfilei in outfiles:
                         (eval('-' + ins.true_ls1.replace('X', 'pts[0,:]').replace('Y', '0').replace('ti','0')) - pts[1, :]) ** 2)) / \
                                                 pts.shape[1]
                 mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_rho_' + numstr + '.vtk', rho)
-            if ins.temp:
+            if ins.temperature:
                 T = md.variable('t')
                 mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_T_' + numstr + '.vtk', t_init)
                 if ins.true_t:
@@ -1196,7 +1199,7 @@ for outfilei in outfiles:
         hf.create_dataset('last_d', data=d_init)
         hf.create_dataset('last2_d', data=d_init)
         hf.create_dataset('err_d', data=err_d, maxshape=(None,))
-        if ins.temp:
+        if ins.temperature:
             hf.create_dataset('last_T', data=t_init)
             hf.create_dataset('last2_T', data=t_init)
             hf.create_dataset('err_t', data=err_t, maxshape=(None,))
@@ -1221,7 +1224,7 @@ for outfilei in outfiles:
         P = p_init
         Previous_d = d_init
         D = d_init
-        if ins.temp:
+        if ins.temperature:
             Previous_t = t_init
             T = t_init
 
@@ -1236,7 +1239,8 @@ for outfilei in outfiles:
                                      np.abs(ls3_interface) <= np.sqrt(dx ** 2 + dy ** 2) / 100))]
             else:
                 pts = pts[:, ((np.abs(ls1_interface) <= np.sqrt(dx ** 2 + dy ** 2) / 100))]
-            expected_area = alphashape.alphashape(pts.transpose(), 2 * np.sqrt(dx ** 2 + dy ** 2)).area
+            #expected_area = alphashape.alphashape(pts.transpose(), 2 * np.sqrt(dx ** 2 + dy ** 2)).area
+            expected_area = 1
         else:
             expected_area = 1
 
@@ -1253,7 +1257,7 @@ for outfilei in outfiles:
             md.set_variable('Previous2_d', d_init)
             md.set_variable('Previous_d', D)
 
-            if ins.temp:
+            if ins.temperature:
                 md.set_variable('Previous2_t', t_init)
                 md.set_variable('Previous_t', T)
 
@@ -1274,7 +1278,7 @@ for outfilei in outfiles:
             md.set_variable('Previous2_d', Previous_d)
             md.set_variable('Previous_d', D)
 
-            if ins.temp:
+            if ins.temperature:
                 md.set_variable('Previous2_t', Previous_t)
                 md.set_variable('Previous_t', T)
 
@@ -1288,7 +1292,7 @@ for outfilei in outfiles:
 
         md.set_variable('Previous_rho',rho)
         md.set_variable('Previous_beta', beta)
-        if ins.temp:
+        if ins.temperature:
             md.set_variable('Previous_kappa', kappa)
 
         md.set_variable('Previous_mu', mu)
@@ -1297,7 +1301,7 @@ for outfilei in outfiles:
 
         md.enable_variable('u')
         md.enable_variable('p')
-        if ins.temp:
+        if ins.temperature:
             md.enable_variable('t')
 
         # density
@@ -1317,7 +1321,7 @@ for outfilei in outfiles:
             beta[ls3_mat < 0] = ins.beta3
         md.set_variable('beta', beta)
 
-        if ins.temp:
+        if ins.temperature:
             # thermal diffusivity
             if ins.free_surface:
                 kappa[(ls1_mat <= 0)] = ins.kappa1
@@ -1333,7 +1337,7 @@ for outfilei in outfiles:
             eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', 'T_mat').replace('vft','ins.vft').replace('etar','ins.etar'))
             eta[eta > ins.max_eta] = ins.max_eta
             eta[T_mat <= ins.vftb/(np.log(ins.max_eta)-ins.vfta) - 273 + ins.vftc] = ins.max_eta
-            if ins.temp & ins.solidification:
+            if ins.temperature & ins.solidification:
                 #T_ls = compute_interpolate_on(mft,T,mfls)
                 ls2.set_values((T - Tg) / Tg)
 
@@ -1348,7 +1352,7 @@ for outfilei in outfiles:
 
         lam = -2/3*eta
         solid = 0 * ones_mat
-        if ins.temp & ins.solidification:
+        if ins.temperature & ins.solidification:
             # elasticity
             if ins.free_surface:
                 lam[(ls1_mat <= 0) & (ls2_mat <= 0)] = lam_solid
@@ -1438,15 +1442,16 @@ for outfilei in outfiles:
 
                     md.set_variable(bound + 'data_' + var, [data_dx, data_dy])
 
-        p_basal = ins.p_amb * ones_ls
-        if ins.topography:
-            p_basal -= ls3.values(0) * ins.rho3 * 9.81
-        elif ins.free_surface:
-            p_basal -= ls1.values(0) * ins.rho1 * 9.81
+        if ins.p_basal:
+            p_basal = ins.p_amb * ones_ls
+            if ins.topography:
+                p_basal -= ls3.values(0) * ins.rho3 * 9.81
+            elif ins.free_surface:
+                p_basal -= ls1.values(0) * ins.rho1 * 9.81
 
-        md.set_variable('pbasal', [p_basal])
+            md.set_variable('pbasal', [p_basal])
 
-        if ins.temp:
+        if ins.temperature:
             for i, bound in enumerate(bounds):
                 dirichlet = False
                 # Dirichlet boundaries
@@ -1469,32 +1474,32 @@ for outfilei in outfiles:
                     md.set_variable(bound + 'data_t', [data_t, data_t])
 
         # update surface flux
-        if ins.temp:
+        if ins.temperature:
             if ins.free_surface | ins.topography:
                 mls_cut = mls.cut_mesh()
                 radii = np.zeros(mls_cut.nbpts())
                 D_cut = mls_cut.pts()
                 for pid in mls_cut.pid():
                     radii[pid] = np.min(mls_cut.convex_radius(mls_cut.cvid_from_pid(pid, share=True)))
-                if ins.temp:
+                if ins.temperature:
                     radii_t = sciinterp.griddata(D_cut.transpose(), radii, D_t.transpose())
 
             else:
                 radii = np.mean(mesh.convex_radius()) * ones_ls
-                if ins.temp:
+                if ins.temperature:
                     radii_t = np.mean(mesh.convex_radius()) * ones_t
 
             if ins.free_surface:
                 if type(ins.surface_flux) is str:
                     surface_flux_budget = ones_t * 0
                     if 'radiation' in ins.surface_flux:
-                        surface_flux_budget += radii_t / ins.rho1 / ins.cp1 * ins.emissivity * ins.stefan_boltzman * (1-ins.crust_cover) * (
+                        surface_flux_budget += radii_t / ins.rho1 / ins.cp1 * ins.emissivity * ins.stefan_boltzmann * (1-ins.crust_cover) * (
                             (ins.T0+273) ** 4 - (ins.T_amb+273) ** 4)
                     if 'forced convection' in ins.surface_flux:
                         surface_flux_budget += ins.heat_transfer_coeff * (T - ins.T_amb)
                     md.set_variable('surface_flux', [surface_flux_budget * ones_t])
 
-            if ins.topography:
+            if ins.topography & (not ins.solve_topography):
                 if type(ins.basal_flux) is str:
                     if 'conduction' in ins.basal_flux:
                         md.set_variable('basal_flux', [ins.kappa1 * (T - ins.basal_temp_i) / radii_t * ones_t])
@@ -1518,17 +1523,17 @@ for outfilei in outfiles:
         P =  ones_p * ins.p_amb
         P[eval(ind_p)] = md.variable('p')
 
-        if ins.temp:
+        if ins.temperature:
             Previous_t = T
             T = ones_t * ins.T_amb
             T[eval(ind_t)] = md.variable('t')
 
         md.disable_variable('u')
         md.disable_variable('p')
-        if ins.temp:
+        if ins.temperature:
             md.disable_variable('t')
 
-        if ins.temp:
+        if ins.temperature:
             if ins.solidification:
 
                 md.enable_variable('d')
@@ -1618,7 +1623,7 @@ for outfilei in outfiles:
                         # err_ls1[int(ti/ins.dt)] = compute_L2_dist(mfls, md.variable('Previous_psi'), mim_all, mfls,
                         #                                          eval(ins.true_ls1))/compute_L2_norm(mfls,eval(ins.true_ls1),mim_all)
                     mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_rho_' + numstr + '.vtk', rho)
-                if ins.temp:
+                if ins.temperature:
                     T = md.variable('t')
                     mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_T_' + numstr + '.vtk', T)
                     if ins.true_t:
@@ -1654,7 +1659,7 @@ for outfilei in outfiles:
             hf['last_d'][:] = D
             hf['last2_d'][:] = Previous_d
             hf['err_d'][:] = err_d
-            if ins.temp:
+            if ins.temperature:
                 hf['last_T'][:] = T
                 hf['last2_T'][:] = Previous_t
                 hf['err_t'][:] = err_t
@@ -1770,12 +1775,12 @@ for outfilei in outfiles:
             if ins.influx & ins.fix_ls:
                 psi = md.variable('psi')
                 psi[mfls.basic_dof_on_region(5)] = ls1_init[mfls.basic_dof_on_region(5)]
-                psi[mfls.basic_dof_on_region(1)] = ls1_init[mfls.basic_dof_on_region(1)]
+                psi[mfls.basic_dof_on_region(bounds.index(ins.fix_ls_bound))] = ls1_init[mfls.basic_dof_on_region(bounds.index(ins.fix_ls_bound))]
                 md.set_variable('psi',psi)
 
             ls1.set_values(md.variable('psi'))
             itr = 0
-            area = 0
+            area = 1
             #if ins.influx:
             #    d_area = ins.dt * ((ins.influx_right - ins.influx_left) * eval(ins.influx_uy) + (
             #                ins.influx_top - ins.influx_bottom) * eval(ins.influx_ux))
@@ -1808,7 +1813,7 @@ for outfilei in outfiles:
             mim_integ.adapt()
             mfp_cut.set_partial(eval(ind_p))
             mfu_cut.set_partial(eval(ind_u))
-            if ins.temp:
+            if ins.temperature:
                 mft_cut.set_partial(eval(ind_t))
                 if ins.t_enrich & ins.free_surface:
                     enriched_dofs = np.nonzero(
@@ -1829,7 +1834,7 @@ for outfilei in outfiles:
             enriched_dofs = enriched_dofs[enriched_dofs > 1]
             mfmat_cutoff.set_enriched_dofs(enriched_dofs)
 
-            if ins.temp & ins.solidification:
+            if ins.temperature & ins.solidification:
                 Previous_Ls_u = compute_interpolate_on(mfls, md.variable('Previous_psi'), mfu.basic_dof_nodes())
                 Ls1_u = compute_interpolate_on(mfls, ls1.values(0), mfu.basic_dof_nodes())
                 D[(Previous_Ls_u >= 0) & (Ls1_u <= 0)] = D_ext[(Previous_Ls_u >= 0) & (Ls1_u <= 0)]
@@ -1839,21 +1844,21 @@ for outfilei in outfiles:
     if ins.free_surface | ins.topography:
         mls.adapt()
 
-    if ins.temp & ins.solidification:
+    if ins.temperature & ins.solidification:
         #T_ls = compute_interpolate_on(mft,T,mfls)
         ls2.set_values((T - Tg) / Tg)
 
     if ins.free_surface | ins.topography:
         mfp_cut.set_partial(eval(ind_p))
         mfu_cut.set_partial(eval(ind_u))
-        if ins.temp:
+        if ins.temperature:
             mft_cut.set_partial(eval(ind_t))
 
     # Reshape for output
     # Velocity
     U = md.variable('u')
     P = md.variable('p')
-    if ins.temp:
+    if ins.temperature:
         T = md.variable('t')
     else:
         T = None
@@ -1872,7 +1877,7 @@ for outfilei in outfiles:
         c3 = ax[1, 0].tripcolor(x_p[eval(ind_p)], y_p[eval(ind_p)], P,
                                 cmap='RdBu_r',
                                 shading='gouraud')  # ,vmin=-1000,vmax=1000)#,vmin=0.999*np.mean(P),vmax=1.001*np.mean(P))
-        if ins.temp:
+        if ins.temperature:
             c4 = ax[1, 1].tripcolor(x_t[eval(ind_t)], y_t[eval(ind_t)], T,
                                     cmap='RdBu_r', shading='gouraud', vmin=0, vmax=ins.T0)
             ax[1, 1].set_title('T', fontsize=18)
@@ -1895,7 +1900,7 @@ for outfilei in outfiles:
             if ins.free_surface:
                 axi[0].tricontour(x_ls, y_ls, ls1.values(0), levels=[0], colors='k')
 
-            if ins.temp & ins.solidification:
+            if ins.temperature & ins.solidification:
                 axi[0].tricontour(x_t, y_t, ls2.values(0), levels=[0], colors='k',
                                   linestyles='--')
         ax[0, 0].set_title('U', fontsize=18)
