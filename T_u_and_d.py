@@ -33,10 +33,14 @@ elif type(ins.Tg) is type(None):
     Tg = ins.vftc + ins.vftb/(12-ins.vfta) - 273
     
 boundary = ['left','right','top','bottom']
+if ins.influx: 
+    bound = bound + ['influx']
 max_u = np.nanmax(np.append(np.array([eval('ins.' + bound + '_ux') for bound in boundary],dtype=float),
                             np.array([eval('ins.' + bound + '_uy') for bound in boundary],dtype=float)))
 min_u = np.nanmin(np.append(np.array([eval('ins.' + bound + '_ux') for bound in boundary],dtype=float),
                             np.array([eval('ins.' + bound + '_uy') for bound in boundary],dtype=float)))
+if (max_u - min_u) < 1e-12:
+    max_u += 1e-12
 
 #### disable automatic camera reset on 'Show'
 paraview.simple._DisableFirstRenderCameraReset()
@@ -165,7 +169,7 @@ plotOverLine1 = PlotOverLine(Input=T,
 
 # init the 'High Resolution Line Source' selected for 'Source'
 plotOverLine1.Source.Point1 = [0.0, ins.L_y/2, 0.0]
-plotOverLine1.Source.Point2 = [ins.L_x, ins.L_x/2, 0.0]
+plotOverLine1.Source.Point2 = [ins.L_x, ins.L_y/2, 0.0]
 
 # create a new 'Plot Over Line'
 plotOverLine3 = PlotOverLine(Input=d,

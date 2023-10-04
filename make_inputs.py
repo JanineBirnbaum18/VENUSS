@@ -54,12 +54,12 @@ dictionary = {
 
     # Temperature
     "temperature": True,
-    "solidification": False,
+    "solidification": True,
     "T0": 1000, # lava temperature (deg C)
     "T_amb": 0, # initial ambient temperature (deg C)
     "T_init": None, # initial temperature field, None sets initial lava temperature to T0
     "basal_temp_i": 50, # initial basal temperature in deg C
-    "kappa1": 1e-7, # thermal diffusivity (m2/s)
+    "kappa1": 1e-5, # thermal diffusivity (m2/s)
     "kappa2": 1e-5,
     "kappa3": 1e-8,
     "cp1": 1200, # heat capacity in J/KgK
@@ -76,7 +76,7 @@ dictionary = {
     "vftb": 0,#633.2,
     "vftc": 0,#450.0+273,
     "etar": 1, # relative viscosity
-    "Tg": 1000, # (deg C)
+    "Tg": 800, # (deg C)
     "max_eta": 1e12, # (Pas)
     "eta2": 1, # (Pas)
     "eta3": 1e12,
@@ -136,7 +136,7 @@ dictionary = {
     "basal_flux": None, # in W/m2 or 'conduction'
 
     # time discretization
-    "tf": 0.25, # final time in s
+    "tf": 0.01, # final time in s
     "dt": 0.001, # time step in s
     "restart": False,
 
@@ -153,11 +153,11 @@ dictionary = {
     "max_iter": 10,
 
     # output options
-    "outfile": './Results/spreading_drop_ellipse_cartesian',
+    "outfile": './Results/test_viz',
     "noutput": 1, # number of timesteps between output
     "ndigits": 3,
     "vtk": True,
-    "viz": 'basic_viz.py',
+    "viz": 't_u_and_d.py',
     "plots": True,
     "plot_mesh": False,
 

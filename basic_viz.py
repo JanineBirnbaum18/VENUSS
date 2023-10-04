@@ -25,7 +25,7 @@ with open(outfile + '/' + outfile.split('/')[-1] +  '.json', 'r') as openfile:
 
 ins = SimpleNamespace(**dictionary)
 
-if ins.temp:
+if ins.temperature:
     if (type(ins.Tg) is float) or (type(ins.Tg) is int):
         Tg = ins.Tg
     elif type(ins.Tg) is type(str):
@@ -52,7 +52,7 @@ renderView2 = CreateView('RenderView')
 renderView3 = CreateView('RenderView')
 renderView4 = CreateView('RenderView')
 
-if ins.temp:
+if ins.temperature:
     renderViews = [renderView1, renderView2, renderView3, renderView4]
 else:
     renderViews = [renderView1, renderView2]
@@ -75,7 +75,7 @@ for renderView in renderViews:
 # ----------------------------------------------------------------
 
 # create new layout object 'Layout #1'
-if ins.temp:
+if ins.temperature:
     layout1 = CreateLayout(name='Layout #1')
     layout1.SplitHorizontal(0, 0.500000)
     layout1.SplitVertical(1, 0.500000)
@@ -142,7 +142,7 @@ for file in os.listdir(outfile):
 
 # create a new 'Legacy VTK Reader'
 P = LegacyVTKReader(FileNames=P_files,registrationName='P')
-if ins.true_P:
+if ins.true_p:
     Ptrue = LegacyVTKReader(FileNames=Ptrue_files, registrationName='Ptrue')
 u = LegacyVTKReader(FileNames=u_files,registrationName='u')
 if ins.true_ux:
@@ -152,7 +152,7 @@ if ins.free_surface:
     if ins.true_ls1:
         Ls1true = LegacyVTKReader(FileNames=Ls1true_files, registrationName='Ls1true')
 
-if ins.temp:
+if ins.temperature:
     mu = LegacyVTKReader(FileNames=mu_files,registrationName='mu')
     T = LegacyVTKReader(FileNames=T_files, registrationName='T')
     if ins.true_t:
@@ -177,7 +177,7 @@ if ins.free_surface:
         contour1.Isosurfaces = [0]
         contour1.PointMergeMethod = 'Uniform Binning'
 
-if ins.temp & ins.solidification:
+if ins.temperature & ins.solidification:
     contour2 = Contour(Input=T,registrationName='Tg')
     contour2.ContourBy = ['POINTS', 'dataset1']
     contour2.Isosurfaces = [Tg]
@@ -295,9 +295,9 @@ def set_contour(renderView,contour,Display,min_val,max_val):
     #contourDisplay.SetScalarBarVisibility(renderView, True)
     return contourDisplay
 
-P_Display = set_renderView(renderView1,P,ins.p_atm,ins.p_atm + ins.L_y*10*ins.rho1,i=1,title='Pressure')
+P_Display = set_renderView(renderView1,P,ins.p_amb,ins.p_amb + ins.L_y*10*ins.rho1,i=1,title='Pressure')
 u_Display = set_renderView(renderView2,u,min_u,max_u,i=2,title='Velocity',component='Magnitude')
-if ins.temp:
+if ins.temperature:
     T_Display = set_renderView(renderView3,T,0,ins.T0,i=3,title='Temperature')
     if ins.solidification:
         d_Display = set_renderView(renderView4,d,0,1e-12,i=4,title='Displacement',component='Magnitude')
@@ -308,7 +308,7 @@ if ins.free_surface:
     for renderView in renderViews:
         set_contour(renderView, contour1, u_Display, 0, 1)
 
-if ins.temp:
+if ins.temperature:
     for renderView in renderViews:
         set_contour(renderView, contour2, T_Display, 0, 1)
 

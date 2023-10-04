@@ -15,7 +15,7 @@ from curvature import *
 from math import erf
 from shapely.plotting import plot_polygon
 
-outfiles = ['spreading_drop_ellipse_cartesian']
+outfiles = ['test_viz']
 #for xi in ['30','60','120']:
 #    for dti in ['0.1','0.033','0.01','0.0033']:
 #        outfiles = np.append(outfiles,'surface_relaxation_' + xi + 'x_' + dti + 't')
@@ -1584,6 +1584,10 @@ for outfilei in outfiles:
             else:
                 Previous_d = 0*u_init
                 D = 0*u_init
+
+            if ins.topography:
+                Ls3_u = compute_interpolate_on(mfls, ls3.values(0), mfu.basic_dof_nodes())
+                D[(Ls3_u < 0)] = 0
 
         if ((round(ti/ins.dt) % ins.noutput == 0) & (ti>=ins.dt)) or (np.abs(ti-ins.tf)<ins.dt):
             print('Time = %g' % ti)
