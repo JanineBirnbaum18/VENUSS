@@ -78,14 +78,14 @@ for outfilei in outfiles:
             err_d[:len(err_d_i)] = err_d_i
 
             if ins.temperature:
-                T = hf.get('last_T')[:]
+                T = hf.get('last_t')[:]
                 Previous_t = hf.get('last2_T')[:]
                 err_t_i = hf.get('err_t')[:]
                 err_t = np.zeros(int(np.ceil(ins.tf / ins.dt)))
                 err_t[:len(err_t_i)] = err_t_i
             if ins.free_surface:
-                last_Ls1 = hf.get('last_Ls1')[:]
-                last2_Ls1 = hf.get('last2_Ls1')[:]
+                last_Ls1 = hf.get('last_ls1')[:]
+                last2_Ls1 = hf.get('last2_ls1')[:]
                 err_ls1_i = hf.get('err_ls1')[:]
                 err_ls1 = np.zeros(int(np.ceil(ins.tf / ins.dt)))
                 err_ls1[:len(err_ls1_i)] = err_ls1_i
@@ -1136,6 +1136,8 @@ for outfilei in outfiles:
                                   true_u)
                 err_u[0] = compute_L2_dist(mfu, u_init, mim, mfu, true_u) / compute_L2_norm(mfu,
                                                                                                       true_u, mim)
+            else:
+                err_u[0] = compute_L2_norm(mfu, u_init, mim)
             mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + numstr + '.vtk', p_init)
             if ins.true_p:
                 mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ptrue_' + numstr + '.vtk',
@@ -1145,6 +1147,8 @@ for outfilei in outfiles:
                                                                                                       'y_p'))) / compute_L2_norm(
                     mfp,
                     eval(ins.true_p.replace('X', 'x_p').replace('Y', 'y_p')), mim)
+            else:
+                err_p[0] = compute_L2_norm(mfp, p_init, mim)
             if ins.free_surface:
                 mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + numstr + '.vtk',
                                    ls1.values(0))
@@ -1158,6 +1162,8 @@ for outfilei in outfiles:
                     err_ls1[0] = np.sqrt(np.sum(
                         (eval('-' + ins.true_ls1.replace('X', 'pts[0,:]').replace('Y', '0').replace('ti','0')) - pts[1, :]) ** 2)) / \
                                                 pts.shape[1]
+                else:
+                    err_ls1[0] = compute_L2_norm(mfls,ls1.values(0), mim)
                 mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_rho_' + numstr + '.vtk', rho)
             if ins.temperature:
                 T = md.variable('t')
@@ -1168,6 +1174,8 @@ for outfilei in outfiles:
                     err_t[0] = compute_L2_dist(mft, t_init, mim, mft,
                                                               eval(ins.true_t.replace('ti','0'))) / compute_L2_norm(mft, eval(
                         ins.true_t.replace('ti','0')), mim)
+                else:
+                    err_t[0] = compute_L2_norm(mft, t_init, mim)
                 mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + numstr + '.vtk', mu)
                 if ins.solidification:
                     mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + numstr + '.vtk', d_init)
@@ -1179,6 +1187,8 @@ for outfilei in outfiles:
                         err_d[0] = compute_L2_dist(mfu, d_init, mim, mfu, true_d) / compute_L2_norm(mfu,
                                                                                                               true_d,
                                                                                                               mim)
+                    else:
+                        err_d[0] = compute_L2_norm(mfu, d_init, mim)
                     mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_VM_' + numstr + '.vtk',
                                           md.compute_isotropic_linearized_Von_Mises_pstrain('d', 'E', 'nu', mfp))
                     mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_solid_' + numstr + '.vtk', solid)
@@ -1200,12 +1210,12 @@ for outfilei in outfiles:
         hf.create_dataset('last2_d', data=d_init)
         hf.create_dataset('err_d', data=err_d, maxshape=(None,))
         if ins.temperature:
-            hf.create_dataset('last_T', data=t_init)
-            hf.create_dataset('last2_T', data=t_init)
+            hf.create_dataset('last_t', data=t_init)
+            hf.create_dataset('last2_t', data=t_init)
             hf.create_dataset('err_t', data=err_t, maxshape=(None,))
         if ins.free_surface:
-            hf.create_dataset('last_Ls1', data=ls1.values(0))
-            hf.create_dataset('last2_Ls1', data=ls1.values(0))
+            hf.create_dataset('last_ls1', data=ls1.values(0))
+            hf.create_dataset('last2_ls1', data=ls1.values(0))
             hf.create_dataset('err_ls1', data=err_ls1, maxshape=(None,))
             hf.create_dataset('expected_area', data=[0])
         hf.create_dataset('last_ti', data=[0])
@@ -1602,6 +1612,8 @@ for outfilei in outfiles:
                                       true_u)
                     err_u[int(ti / ins.dt)] = compute_L2_dist(mfu, U, mim, mfu, true_u) / compute_L2_norm(mfu,
                         true_u, mim)
+                else:
+                    err_u[int(ti / ins.dt)] = compute_L2_norm(mfu,U, mim)
                 mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + numstr + '.vtk', P)
                 if ins.true_p:
                     mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ptrue_' + numstr + '.vtk',
@@ -1609,6 +1621,8 @@ for outfilei in outfiles:
                     err_p[int(ti / ins.dt)] = compute_L2_dist(mfp, P, mim, mfp,
                                                               eval(ins.true_p.replace('X','x_p').replace('Y','y_p'))) / compute_L2_norm(mfp,
                                                               eval(ins.true_p.replace('X','x_p').replace('Y','y_p')),mim)
+                else:
+                    err_p[int(ti / ins.dt)] = compute_L2_norm(mfp, P, mim)
                 if ins.free_surface:
                     mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + numstr + '.vtk',
                                        md.variable('psi'))
@@ -1622,6 +1636,8 @@ for outfilei in outfiles:
                         err_ls1[int(ti / ins.dt)] = np.sqrt(np.sum(
                             (eval('-'+ins.true_ls1.replace('X', 'pts[0,:]').replace('Y', '0')) - pts[1, :]) ** 2)) / \
                                                     pts.shape[1]
+                    else:
+                        err_ls1[int(ti / ins.dt)] = compute_L2_norm(mfls, ls1.values(0), mim)
                         #print(pts[1,:])
                         #print(eval('-'+ins.true_ls1.replace('X', 'pts[0,:]').replace('Y', '0')))
                         # err_ls1[int(ti/ins.dt)] = compute_L2_dist(mfls, md.variable('Previous_psi'), mim_all, mfls,
@@ -1636,6 +1652,8 @@ for outfilei in outfiles:
                         err_t[int(ti / ins.dt)] = compute_L2_dist(mft, T, mim, mft,
                                                                   eval(ins.true_t)) / compute_L2_norm(mft, eval(
                             ins.true_t), mim)
+                    else:
+                        err_t[int(ti / ins.dt)] = compute_L2_norm(mft, T, mim)
                     mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + numstr + '.vtk', mu)
                     if ins.solidification:
                         mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + numstr + '.vtk', D)
@@ -1647,6 +1665,8 @@ for outfilei in outfiles:
                             err_d[int(ti / ins.dt)] = compute_L2_dist(mfu, D, mim, mfu, true_d) / compute_L2_norm(mfu,
                                                                                                                   true_d,
                                                                                                                   mim)
+                        else:
+                            err_d[int(ti / ins.dt)] = compute_L2_norm(mfu, D, mim)
                         mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_VM_' + numstr + '.vtk',
                                               md.compute_isotropic_linearized_Von_Mises_pstrain('d', 'E', 'nu', mfp))
                         mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_solid_' + numstr + '.vtk',solid)
@@ -1664,12 +1684,12 @@ for outfilei in outfiles:
             hf['last2_d'][:] = Previous_d
             hf['err_d'][:] = err_d
             if ins.temperature:
-                hf['last_T'][:] = T
-                hf['last2_T'][:] = Previous_t
+                hf['last_t'][:] = T
+                hf['last2_t'][:] = Previous_t
                 hf['err_t'][:] = err_t
             if ins.free_surface:
-                hf['last_Ls1'][:] = ls1.values(0)
-                hf['last2_Ls1'][:] = md.variable('Previous_psi')
+                hf['last_ls1'][:] = ls1.values(0)
+                hf['last2_ls1'][:] = md.variable('Previous_psi')
                 hf['err_ls1'][:] = err_ls1
                 hf['expected_area'][:] = [expected_area]
             hf['last_ti'][:] = [ti]
