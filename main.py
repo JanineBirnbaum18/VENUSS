@@ -442,7 +442,10 @@ for outfilei in outfiles:
             area_init = 1
         else:
             #area_init = 1
-            area_init = alphashape.alphashape(pts.transpose(), 2 * np.sqrt(dx ** 2 + dy ** 2)).area
+            if 'planar' in ins.symmetry:
+                area_init = alphashape.alphashape(pts.transpose(), 2 * np.sqrt(dx ** 2 + dy ** 2)).area
+            else:
+                area_init = 1
     # drop dof outside region of interest
     if ins.free_surface | ins.topography:
         mfp_cut = gf.MeshFem('partial', mfp, np.arange(mfp.nbdof()))
@@ -609,8 +612,8 @@ for outfilei in outfiles:
     solid = 0 * ones_mat
 
     if ins.temperature & ins.solidification:
-        lam_solid = ins.E * ins.nu / ((1 + ins.nu) * (1 - 2 * ins.nu))
         mu_solid = ins.E / (2 * (1 + ins.nu))
+        lam_solid = ins.E * ins.nu / ((1 + ins.nu) * (1 - 2 * ins.nu)) + mu_solid
         ls2_mat = compute_interpolate_on(mft,ls2.values(0),mfmat)
         if ins.free_surface:
             lam[(ls1_mat <= 0) & (ls2_mat < 0)] = lam_solid
@@ -674,7 +677,7 @@ for outfilei in outfiles:
         Psi_grid = sciinterp.griddata(D_ls.transpose(), ls1.values(0),
                                            np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='linear').reshape(x_grid.shape)
 
-        dx_Psi_grid,dy_Psi_grid,curvature,mag_grad_Psi_grid = compute_curvature(Psi_grid, dx, dy)
+        dx_Psi_grid,dy_Psi_grid,curvature,mag_grad_Psi_grid = compute_curvature(Psi_grid, dx, dy, symmetry=ins.symmetry)
         md.add_initialized_fem_data('curvature',mfls,
                                     sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), curvature.flatten(),
                                            D_ls.transpose(),

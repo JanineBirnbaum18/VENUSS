@@ -6,6 +6,7 @@ import numpy as np
 dictionary = {
     # mesh geometry
     "ndim": 2,
+    "symmetry": "planar", # problem symmetry either "planar" or "axial"
     "L_x": 1, # length of boundaries (m)
     "L_y": 0.5,
     "L_z": 1,
