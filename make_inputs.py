@@ -23,9 +23,9 @@ dictionary = {
     "mat_k": 1,
 
     # initial free surface level set
-    "free_surface": True,
-    "solve_air": True,
-    "ls1p": "(X)*(X) + (Y-0.35)*(Y-0.35) - 0.3*0.3", # String using x,y,and z in m
+    "free_surface": False,
+    "solve_air":False,
+    "ls1p": "0*X", # String using x,y,and z in m
     "ls1s": None,
 
     # initial temperature level set
@@ -35,36 +35,36 @@ dictionary = {
     # topography level set
     "topography": True,
     "solve_topography": True,
-    "ls3p": "Y-0.35",
+    "ls3p": "Y-0",
     "ls3s": None,
 
     # Pressure
-    "compressible": True,
+    "compressible": False,
     "steady": False,
     "steady_init": True,
     "p_amb": 0, # ambient pressure (Pa)
-    "p_basal": True,
-    "p_bound": 'bottom_right',
+    "p_basal": False,
+    "p_bound": 'top_left',
     #"p_bound2": 'top_right',
     #"p_bound2_val": 0,
-    "rho1": 2700, # density where ls1p<0 (lava) (kg/m3)
+    "rho1": 1, # density where ls1p<0 (lava) (kg/m3)
     "rho2": 1, # density where ls1p>0 (air) (kg/m3)
-    "rho3": 3000, # density where ls3p<0 (ground) (kg/m3)
-    "surface_tension": 0.08, # surface tension between fluids 1 and 2 (lava in air) (Pa/m)
+    "rho3": 1, # density where ls3p<0 (ground) (kg/m3)
+    "surface_tension": 0.0, # surface tension between fluids 1 and 2 (lava in air) (Pa/m)
 
     "beta1": 1e-12, # compressibility (1/Pa)
-    "beta2": 1e-5,
+    "beta2": 1e-12,
     "beta3": 1e-12,
 
     # Temperature
-    "temperature": True,
+    "temperature": False,
     "solidification": False,
-    "T0": 1200, # lava temperature (deg C)
-    "T_amb": 50, # initial ambient temperature (deg C)
+    "T0": 1000, # lava temperature (deg C)
+    "T_amb": 0, # initial ambient temperature (deg C)
     "T_init": None, # initial temperature field, None sets initial lava temperature to T0
     "basal_temp_i": 0, # initial basal temperature in deg C
     "kappa1": 1e-12, # thermal diffusivity (m2/s)
-    "kappa2": 1e-7,
+    "kappa2": 1e-12,
     "kappa3": 1e-12,
     "cp1": 1200, # heat capacity in J/KgK
     "cp2": 1200, # heat capacity in J/KgK
@@ -76,7 +76,7 @@ dictionary = {
 
     # Viscosity
     "eta_exp": "etar*exp(vfta + vftb/(T + 273 - vftc))", # (Pas)
-    "vfta": np.log(200), #3.45,
+    "vfta": 0, #3.45,
     "vftb": 0, #633.2,
     "vftc": 0, #450.0+273,
     "etar": 1, # relative viscosity
@@ -91,19 +91,19 @@ dictionary = {
 
     # Body force, velocity boundary conditions
     "f_x": None, # body force (N/m3)
-    "f_y": "-rho*9.81",
+    "f_y": "8*(24*(0.2*X**5-0.5*X**4+X**3/3)+2*(4*X**3-6*X**2+2*X)*(12*Y**2-2)+(24*X-12)*(Y**4-Y**2))",
     "left_ux": 0, # Dirichlet velocity condition (m/s) as float,str,or None
-    "left_uy": None,
+    "left_uy": 0,
     "left_dux": None, # Neumann stress condition (Pa/m)
-    "left_duy": 0,
-    "right_ux": None,
-    "right_uy": None,
-    "right_dux": 0,
-    "right_duy": 0,
-    "top_ux": 0,
-    "top_uy": None,
+    "left_duy": None,
+    "right_ux": 0,
+    "right_uy": 0,
+    "right_dux": None,
+    "right_duy": None,
+    "top_ux": "16*X**4 - 32*X**3 + 16*X**2",
+    "top_uy": 0,
     "top_dux": None,
-    "top_duy": 0,
+    "top_duy": None,
     "bottom_ux": 0,
     "bottom_uy": 0,
     "bottom_dux": None,
@@ -128,12 +128,12 @@ dictionary = {
     "left_dt": 0, # Neumann temperature condition (deg C/m)
     "right_t": None,
     "right_dt": 0,
-    "top_t": 50,
+    "top_t": 0,
     "top_dt": None,
     "bottom_t": None,
     "bottom_dt": 50,
 
-    "influx_t": "1150*((Y>=0)*(Y<=0.0401)) + 50",
+    "influx_t": "0*X",
     "influx_dt": None,
 
     "surface_temp": None,
@@ -142,8 +142,8 @@ dictionary = {
     "basal_flux": None, # in W/m2 or 'conduction'
 
     # time discretization
-    "tf": 0.04, # final time in s
-    "dt": 0.01, # time step in s
+    "tf": 1, # final time in s
+    "dt": 1, # time step in s
     "restart": False,
 
     # Solve options
@@ -156,11 +156,11 @@ dictionary = {
     "ndt0": 1, # number of substeps for BDF bootstrap
 
     "max_residual": 1e-11,
-    "max_iter": 5,
+    "max_iter": 10,
     "n_outer_iter": 1,
 
     # output options
-    "outfile": './Results/spreading_drop_axial',
+    "outfile": './Results/cavity',
     "noutput": 1, # number of timesteps between output
     "ndigits": 3,
     "vtk": True,
