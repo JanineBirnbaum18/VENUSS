@@ -2,7 +2,7 @@ import numpy as np
 import skfmm
 import alphashape
 
-def compute_curvature(Psi_grid, dx, dy):
+def compute_curvature(Psi_grid, dx, dy,symmetry='planar'):
     dx_Psi_grid = np.zeros_like(Psi_grid)
     dx_Psi_grid[:, 1:-1] = (Psi_grid[:, 2:] - Psi_grid[:, :-2]) / (2 * dx)
     dx_Psi_grid[:, 0] = (Psi_grid[:, 1] - Psi_grid[:, 0]) / dx
