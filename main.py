@@ -16,7 +16,7 @@ from curvature import *
 from math import erf
 from shapely.plotting import plot_polygon
 
-outfiles = ['spreading_drop_axial']
+outfiles = ['cavity']
 #for xi in ['30','60','120']:
 #    for dti in ['0.1','0.033','0.01','0.0033']:
 #        outfiles = np.append(outfiles,'surface_relaxation_' + xi + 'x_' + dti + 't')
@@ -182,12 +182,16 @@ for outfilei in outfiles:
     # Levelset definition:
     # free surface
     if ins.free_surface:
-        ls1 = gf.LevelSet(mesh, ins.ls_k, ins.ls1p, ins.ls1s)
+        ls1 = gf.LevelSet(mesh, ins.ls_k,
+                          ins.ls1p.replace('X','x').replace('Y','y'),
+                          ins.ls1s.replace('X','x').replace('Y','y'))
         mls = gf.MeshLevelSet(mesh)
         mlsxfem = gf.MeshLevelSet(mesh)
         mls.add(ls1)
         if ins.topography:
-            ls1xfem = gf.LevelSet(mesh, ins.ls_k, ins.ls1p,'-(' + ins.ls3p + ')')
+            ls1xfem = gf.LevelSet(mesh, ins.ls_k,
+                                  ins.ls1p.replace('X','x').replace('Y','y'),
+                                  '-(' + ins.ls3p.replace('X','x').replace('Y','y') + ')')
             mlsxfem.add(ls1xfem)
         else:
             mlsxfem.add(ls1)
@@ -195,7 +199,9 @@ for outfilei in outfiles:
     # temperature contour
     if ins.temperature & ins.solidification:
         mls2 = gf.MeshLevelSet(mesh)
-        ls2 = gf.LevelSet(mesh, ins.t_k, ins.ls2p, ins.ls2s)
+        ls2 = gf.LevelSet(mesh, ins.t_k,
+                          ins.ls2p.replace('X','x').replace('Y','y'),
+                          ins.ls2s.replace('X','x').replace('Y','y'))
         mls2.add(ls2)
         mls2.adapt()
 
@@ -203,13 +209,15 @@ for outfilei in outfiles:
     if ins.topography:
         if not ins.free_surface:
             mls = gf.MeshLevelSet(mesh)
-        ls3 = gf.LevelSet(mesh, ins.ls_k, ins.ls3p, ins.ls3s)
+        ls3 = gf.LevelSet(mesh, ins.ls_k,
+                          ins.ls3p.replace('X','x').replace('Y','y'),
+                          ins.ls3s.replace('X','x').replace('Y','y'))
         mls.add(ls3)
 
     if ins.restart:
         if ins.free_surface:
             ls1.set_values(last_Ls1)
-            ls1xfem.set_values(last_Ls1,'-(' + ins.ls3p + ')')
+            ls1xfem.set_values(last_Ls1,'-(' + ins.ls3p.replace('X','x').replace('Y','y') + ')')
 
     if ins.free_surface | ins.topography:
         mls.adapt()
@@ -1826,10 +1834,11 @@ for outfilei in outfiles:
             if solve_iter:
                 md.solve('max_res', ins.max_residual, 'max_iter', ins.max_iter, 'noisy')
 
-            T_temp = compute_interpolate_on(mft,md.variable('t'),mft0)
-            T_temp[T_temp>ins.T0] = ins.T0
-            T_temp[T_temp<ins.T_amb] = ins.T_amb
-            md.set_variable('ttemp',T_temp)
+            if ins.temperature:
+                T_temp = compute_interpolate_on(mft,md.variable('t'),mft0)
+                T_temp[T_temp>ins.T0] = ins.T0
+                T_temp[T_temp<ins.T_amb] = ins.T_amb
+                md.set_variable('ttemp',T_temp)
 
             if j == 0:
                 Previous_u = U

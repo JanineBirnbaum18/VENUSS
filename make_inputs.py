@@ -25,17 +25,17 @@ dictionary = {
     # initial free surface level set
     "free_surface": True,
     "solve_air": True,
-    "ls1p": "(x)*(x) + (y-0.35)*(y-0.35) - 0.3*0.3", # String using x,y,and z in m
+    "ls1p": "(X)*(X) + (Y-0.35)*(Y-0.35) - 0.3*0.3", # String using x,y,and z in m
     "ls1s": None,
 
     # initial temperature level set
-    "ls2p": "0*x+1",
+    "ls2p": "0*X+1",
     "ls2s": None,
 
     # topography level set
     "topography": True,
     "solve_topography": True,
-    "ls3p": "y-0.35",
+    "ls3p": "Y-0.35",
     "ls3s": None,
 
     # Pressure
