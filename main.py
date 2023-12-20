@@ -56,6 +56,10 @@ for outfilei in outfiles:
         else:
             ndecimal = 0
 
+    for ls in [ins.ls1p, ins.ls1s, ins.ls2p, ins.ls2s, ins.ls3p, ins.ls3s]:
+        if type(ls) is str:
+            ls = ls.replace('X','x').replace('Y','y')
+
     ti = 0
     if ins.restart:
         try:
@@ -182,16 +186,12 @@ for outfilei in outfiles:
     # Levelset definition:
     # free surface
     if ins.free_surface:
-        ls1 = gf.LevelSet(mesh, ins.ls_k,
-                          ins.ls1p.replace('X','x').replace('Y','y'),
-                          ins.ls1s.replace('X','x').replace('Y','y'))
+        ls1 = gf.LevelSet(mesh, ins.ls_k, ins.ls1p, ins.ls1s)
         mls = gf.MeshLevelSet(mesh)
         mlsxfem = gf.MeshLevelSet(mesh)
         mls.add(ls1)
         if ins.topography:
-            ls1xfem = gf.LevelSet(mesh, ins.ls_k,
-                                  ins.ls1p.replace('X','x').replace('Y','y'),
-                                  '-(' + ins.ls3p.replace('X','x').replace('Y','y') + ')')
+            ls1xfem = gf.LevelSet(mesh, ins.ls_k, ins.ls1p, '-(' + ins.ls3p + ')')
             mlsxfem.add(ls1xfem)
         else:
             mlsxfem.add(ls1)
@@ -199,9 +199,7 @@ for outfilei in outfiles:
     # temperature contour
     if ins.temperature & ins.solidification:
         mls2 = gf.MeshLevelSet(mesh)
-        ls2 = gf.LevelSet(mesh, ins.t_k,
-                          ins.ls2p.replace('X','x').replace('Y','y'),
-                          ins.ls2s.replace('X','x').replace('Y','y'))
+        ls2 = gf.LevelSet(mesh, ins.t_k, ins.ls2p, ins.ls2s)
         mls2.add(ls2)
         mls2.adapt()
 
@@ -209,15 +207,13 @@ for outfilei in outfiles:
     if ins.topography:
         if not ins.free_surface:
             mls = gf.MeshLevelSet(mesh)
-        ls3 = gf.LevelSet(mesh, ins.ls_k,
-                          ins.ls3p.replace('X','x').replace('Y','y'),
-                          ins.ls3s.replace('X','x').replace('Y','y'))
+        ls3 = gf.LevelSet(mesh, ins.ls_k, ins.ls3p, ins.ls3s)
         mls.add(ls3)
 
     if ins.restart:
         if ins.free_surface:
             ls1.set_values(last_Ls1)
-            ls1xfem.set_values(last_Ls1,'-(' + ins.ls3p.replace('X','x').replace('Y','y') + ')')
+            ls1xfem.set_values(last_Ls1,'-(' + ins.ls3p + ')')
 
     if ins.free_surface | ins.topography:
         mls.adapt()

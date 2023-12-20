@@ -33,7 +33,7 @@ dictionary = {
     "ls2s": None,
 
     # topography level set
-    "topography": True,
+    "topography": False,
     "solve_topography": True,
     "ls3p": "Y-0",
     "ls3s": None,
