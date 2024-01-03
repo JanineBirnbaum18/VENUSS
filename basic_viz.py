@@ -15,6 +15,8 @@ import json
 from types import SimpleNamespace
 import numpy as np
 import os
+import vtk
+from vtk.util.numpy_support import vtk_to_numpy
 
 # import run metadata
 outfile = r'fileloc'
@@ -32,13 +34,29 @@ if ins.temperature:
         Tg = eval(ins.Tg.replace('vft', 'ins.vft'))
     elif type(ins.Tg) is type(None):
         Tg = ins.vftc + ins.vftb/(12-ins.vfta) - 273
-    
+
 boundary = ['left','right','top','bottom']
-max_u = np.nanmax(np.append(np.array([eval('ins.' + bound + '_ux') for bound in boundary],dtype=float),
-                            np.array([eval('ins.' + bound + '_uy') for bound in boundary],dtype=float)))
-min_u = np.nanmin(np.append(np.array([eval('ins.' + bound + '_ux') for bound in boundary],dtype=float),
-                            np.array([eval('ins.' + bound + '_uy') for bound in boundary],dtype=float)))
-max_u = np.max([max_u,0.1])
+X,Y = np.meshgrid(np.linspace(0,ins.L_x,ins.nx),np.linspace(0,ins.L_y,ins.ny))
+max_u = []
+min_u = []
+for bound in boundary:
+    if type(eval('ins.' + bound + '_ux')) is str:
+        max_u = np.append(max_u,np.nanmax(eval(eval('ins.' + bound + '_ux'))))
+        min_u = np.append(min_u, np.nanmin(eval(eval('ins.' + bound + '_ux'))))
+    else:
+        max_u = np.append(max_u,eval('ins.' + bound + '_ux'))
+        min_u = np.append(min_u,eval('ins.' + bound + '_ux'))
+
+    if type(eval('ins.' + bound + '_uy')) is str:
+        max_u = np.append(max_u,np.nanmax(eval(eval('ins.' + bound + '_uy'))))
+        min_u = np.append(min_u, np.nanmin(eval(eval('ins.' + bound + '_uy'))))
+    else:
+        max_u = np.append(max_u,eval('ins.' + bound + '_uy'))
+        min_u = np.append(min_u,eval('ins.' + bound + '_uy'))
+max_u = np.nanmax(max_u)
+min_u = np.nanmax(min_u)
+if max_u<(min_u+np.abs(min_u)/10+1e-15):
+    max_u = min_u+np.abs(min_u)/10+1e-15
 
 #### disable automatic camera reset on 'Show'
 paraview.simple._DisableFirstRenderCameraReset()

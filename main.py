@@ -16,7 +16,7 @@ from curvature import *
 from math import erf
 from shapely.plotting import plot_polygon
 
-outfiles = ['cavity']
+outfiles = ['cavity_30x']
 #for xi in ['30','60','120']:
 #    for dti in ['0.1','0.033','0.01','0.0033']:
 #        outfiles = np.append(outfiles,'surface_relaxation_' + xi + 'x_' + dti + 't')
@@ -56,9 +56,12 @@ for outfilei in outfiles:
         else:
             ndecimal = 0
 
-    for ls in [ins.ls1p, ins.ls1s, ins.ls2p, ins.ls2s, ins.ls3p, ins.ls3s]:
-        if type(ls) is str:
-            ls = ls.replace('X','x').replace('Y','y')
+    for ls in ['ls1p', 'ls1s', 'ls2p', 'ls2s', 'ls3p', 'ls3s']:
+        if type(ins.__dict__[ls]) is str:
+            ins.__dict__[ls] = ins.__dict__[ls].replace('X','x').replace('Y','y')
+
+    if ins.compressible:
+        ins.steady = False
 
     ti = 0
     if ins.restart:
@@ -128,35 +131,7 @@ for outfilei in outfiles:
         fb_top = mesh.outer_faces_with_direction([0., 1.], 0.01)  # boundary 3
         fb_bottom = mesh.outer_faces_with_direction([0., -1.], 0.01)  # boundary 4
 
-        # boundary 7
-        if 'bottom_left' in ins.p_bound:
-            fb_p = mesh.outer_faces_in_box([-dx/2, -dy/2], [dx/2, dy/2])
-        if 'bottom_right' in ins.p_bound:
-            fb_p = mesh.outer_faces_in_box([ins.L_x-dx/2, -dy/2], [ins.L_x+dx/2, dy/2])
-        if 'top_left' in ins.p_bound:
-            fb_p = mesh.outer_faces_in_box([-dx/2, ins.L_y-dy/2], [dx/2, ins.L_y+dy/2])
-        if 'top_right' in ins.p_bound:
-            fb_p = mesh.outer_faces_in_box([ins.L_x-dx/2, ins.L_y-dy/2], [ins.L_x+dx/2, ins.L_y+dy/2])
-
-        fb_left = fb_left[:, ~(np.in1d(fb_left[0], fb_p[0]) & np.in1d(fb_left[1], fb_p[1]))]
-        fb_right = fb_right[:, ~(np.in1d(fb_right[0], fb_p[0]) & np.in1d(fb_right[1], fb_p[1]))]
-        fb_top = fb_top[:, ~(np.in1d(fb_top[0], fb_p[0]) & np.in1d(fb_top[1], fb_p[1]))]
-        fb_bottom = fb_bottom[:, ~(np.in1d(fb_bottom[0], fb_p[0]) & np.in1d(fb_bottom[1], fb_p[1]))]
-
-        # boundary 8
-        #if 'bottom_left' in ins.p_bound2:
-        #    fb_p2 = mesh.outer_faces_in_box([-dx / 2, -dy / 2], [dx, dy])
-        #if 'bottom_right' in ins.p_bound2:
-        #    fb_p2 = mesh.outer_faces_in_box([ins.L_x - dx / 2, -dy / 2], [ins.L_x + dx / 2, dy / 2])
-        #if 'top_left' in ins.p_bound2:
-        #    fb_p2 = mesh.outer_faces_in_box([-dx / 2, ins.L_y - dy / 2], [dx / 2, ins.L_y + dy / 2])
-        #if 'top_right' in ins.p_bound2:
-        #    fb_p2 = mesh.outer_faces_in_box([ins.L_x - dx / 2, ins.L_y - dy / 2],
-        #                                   [ins.L_x + dx / 2, ins.L_y + dy / 2])
-
         if ins.influx:
-            #fb_influx = mesh.faces_from_cvid(mesh.convexes_in_box((ins.influx_left, ins.influx_bottom),
-            #                                                      (ins.influx_right, ins.influx_top)))
             fb_influx = mesh.outer_faces_in_box([ins.influx_left, ins.influx_bottom],
                                                 [ins.influx_right, ins.influx_top])
 
@@ -174,10 +149,6 @@ for outfilei in outfiles:
             bounds_type = np.append(bounds_type, type(eval('ins.' + bound + '_t')))
         else:
             bounds_type = np.append(bounds_type, type(eval('ins.' + bound + '_ux')))
-
-    mesh.set_region(7, fb_p)
-    #mesh.set_region(8,fb_p2)
-    #mesh.set_region(6,fb_topleft)
 
     if ins.vtk:
         # export to vtk for visualization through python
@@ -607,7 +578,8 @@ for outfilei in outfiles:
         if ins.topography:
             beta[ls3_mat < 0] = ins.beta3
     else:
-        beta = ones_mat * 1e-12
+        beta = ones_mat * (1e-9)/rho
+    #beta[beta<(1e-9)/rho] = (1e-9)/rho[beta<(1e-9)/rho]
     beta_init = beta.copy()
     md.add_initialized_fem_data('beta', mfmat, beta)
     md.add_initialized_fem_data('Previous_beta', mfmat, beta)
@@ -809,17 +781,14 @@ for outfilei in outfiles:
 
     if ins.free_surface & ins.solve_air:
        md_init.add_nonlinear_term(mim_fluidbound, "1e6*((Xfem_plus(p)-Xfem_minus(p))+surface_tension*curvature).(Xfem_plus(Test_p)-Xfem_minus(Test_p))")
-       #md_init.add_nonlinear_term(mim_base, "1e6*((Xfem_plus(p)-Xfem_minus(p))).(Xfem_plus(Test_p)-Xfem_minus(Test_p))")
-    #if ins.topography & ins.solve_topography:
-    #    md_init.add_nonlinear_term(mim_topo,"1e8*(Norm(Grad_p)*Test_p)")
 
     md.add_macro('h', 'element_size')
 
     # compressible mass balance
-    if ins.compressible or (ins.temperature & ins.solidification):
-        md.add_macro('rhof', 'rho*(1 + beta*(p-pamb))')
-        md.add_macro('Previous_rhof', 'Previous_rho*(1 + beta*(Previous_p-pamb))')
-        md.add_macro('Previous2_rhof', 'Previous2_rho*(1 + beta*(Previous2_p-pamb))')
+    #if ins.compressible or (ins.temperature & ins.solidification):
+    md.add_macro('rhof', 'rho*(1 + beta*(p-pamb))')
+    md.add_macro('Previous_rhof', 'Previous_rho*(1 + beta*(Previous_p-pamb))')
+    md.add_macro('Previous2_rhof', 'Previous2_rho*(1 + beta*(Previous2_p-pamb))')
 
     time_int_p = '(BDF0*p+BDF1*Previous_p+BDF2*Previous2_p)/dt'
 
@@ -847,39 +816,26 @@ for outfilei in outfiles:
             md.add_nonlinear_term(mim, tau_SUPG_p + '*' + S_SUPG_p)
             md.add_nonlinear_term(mim, tau_SUPG_p_init + '*' + S_SUPG_p_init)
 
-        #elif 'GLS' in ins.stab_p:
-        #    if 'planar' in ins.symmetry:
-        #        S_SUPG_p = "(" + time_int_p + "*(u.Grad_Test_p)" + " + 1/(rho*beta)*rhof*Div_u*(u.Grad_Test_p) + u.Grad_p*(u.Grad_Test_p))"
-        #        S_SUPG_p_init = "(" + time_int_p + "*(Previous_u.Grad_Test_p)" + " + 1/(Previous_rho*Previous_beta)*(Previous_rhof*Div_Previous_u)*(Previous_u.Grad_Test_p) + Previous_u.Grad_p*(Previous_u.Grad_Test_p))"
-
-        #        S_GLS_p = "(" + time_int_p + "*Trace(Grad(rho*beta*u*Test_p)) + (Trace(Grad(X(1)*rhof*u)))*(Trace(Grad(rho*beta*u*Test_p))))"
-        #        S_GLS_p_init = "(" + time_int_p + "*Trace(Grad(Previous_rho*Previous_beta*Previous_u*Test_p)) + (Trace(Grad(X(1)*Previous_rhof*Previous_u)))*(Trace(Grad(Previous_rho*Previous_beta*Previous_u*Test_p))))"
-        #        tau_GLS_p = '1/(2/dt + 2*Norm(rho*beta*u)/h)'
-        #        tau_GLS_p_init = 'BDFf/(2/dt + 2*Norm(Previous_rho*Previous_beta*Previous_u)/h)'
-        #    elif 'axial' in ins.symmetry:
-        #        S_SUPG_p = "(" + time_int_p + "*(u.Grad(X(1)*Test_p))" + " + X(1)/(rho*beta)*rhof*Div_u*(u.Grad(X(1)*Test_p)) + u.Grad(X(1)*p)*(u.Grad(X(1)*Test_p)))"
-        #        S_SUPG_p_init = "(" + time_int_p + "*(Previous_u.Grad(X(1)*Test_p))" + " + X(1)/(Previous_rho*Previous_beta)*Previous_rhof*Div_Previous_u*(Previous_u.Grad(X(1)*Test_p)) + Previous_u.Grad(X(1)*p)*(Previous_u.Grad(X(1)*Test_p)))"
-
-        #        S_GLS_p = "(" + time_int_p + "*Trace(Grad(X(1)*rho*beta*u*Test_p)) + (u.Grad(X(1)*p)*Trace(Grad(X(1)*rho*beta*u*Test_p))))"
-        #        S_GLS_p_init = "(" + time_int_p + "*(Trace(Grad(X(1)*Previous_rho*Previous_beta*Previous_u*Test_p))) + (Trace(Grad(X(1)*Previous_rhof*Previous_u)))*Trace(Grad(X(1)*Previous_rho*Previous_beta*Previous_u*Test_p)))"
-        #        tau_GLS_p = '1/(2/dt + 2*Norm(rho*beta*X(1)*u)/h)'
-        #        tau_GLS_p_init = 'BDFf/(2/dt + 2*Norm(rho*beta*X(1)*Previous_u)/h)'
-        #    md.add_nonlinear_term(mim, tau_GLS_p + '*' + S_GLS_p)
-        #    md.add_nonlinear_term(mim, tau_GLS_p_init + '*' + S_GLS_p_init)
-
     else:
-        md.add_linear_incompressibility_brick(mim, 'u', 'p')
-        if 'axial' in ins.symmetry:
-            md.add_nonlinear_term(mim_all, '(u.([1,0]*p))*Test_p')
+        if ins.steady:
+            md.add_linear_incompressibility_brick(mim, 'u', 'p')
+            if 'axial' in ins.symmetry:
+                md.add_nonlinear_term(mim_all, '(u.([1,0]*p))*Test_p')
+        else:
+            if 'planar' in ins.symmetry:
+                md.add_nonlinear_term(mim, time_int_p + '*Test_p')
+                md.add_nonlinear_term(mim, '1/(rho*beta)*rhof*Div_u*Test_p + u.Grad(p)*Test_p')
+                md.add_nonlinear_term(mim,
+                                      'BDFf*(1/(Previous_rho*Previous_beta)*Previous_rhof*Div_Previous_u*Test_p + Previous_u.Grad(Previous_p)*Test_p)')
+            elif 'axial' in ins.symmetry:
+                md.add_nonlinear_term(mim, time_int_p + '*X(1)*Test_p')
+                md.add_nonlinear_term(mim, 'X(1)/(rho*beta)*rhof*Div_u*Test_p + u.Grad(X(1)*p)*Test_p')
+                md.add_nonlinear_term(mim,
+                                      'BDFf*(X(1)/(rho*beta)*Previous_rhof*Div_Previous_u*Test_p + Previous_u.Grad(X(1)*Previous_p)*Test_p)')
 
     if ins.free_surface & ins.solve_air:
         md.add_nonlinear_term(mim_fluidbound, "1e6*((Xfem_plus(p)-Xfem_minus(p))+surface_tension*curvature).(Xfem_plus(Test_p)-Xfem_minus(Test_p))")
-        #md.add_nonlinear_term(mim_base,"1e8*((Xfem_plus(p)-Xfem_minus(p))).(Xfem_plus(Test_p)-Xfem_minus(Test_p))")
         md.add_nonlinear_term(mim_fluidbound, "1e8*((Xfem_plus(t)-Xfem_minus(t))-(1150-tamb)/2).(Xfem_plus(Test_t)-Xfem_minus(Test_t))")
-        #md.add_nonlinear_term(mim_topo,"1e8*((Xfem_plus(t)-Xfem_minus(t))-(0)).(Xfem_plus(Test_t)-Xfem_minus(Test_t))")
-
-    #if ins.topography & ins.solve_topography:
-    #    md.add_nonlinear_term(mim_topo,"1e6*(Norm(Grad_p)*Test_p)")
 
     # mometum balance
     if ins.compressible:
@@ -887,11 +843,16 @@ for outfilei in outfiles:
     else:
         time_int_u = "rho*(BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u"
 
+
     if 'planar' in ins.symmetry:
         if ins.steady:
             md.add_nonlinear_term(mim, 'solid*' + time_int_u)
             md.add_isotropic_linearized_elasticity_brick(mim, 'u', 'lambda*(dt*solid + (1-solid))',
                                                               'mu*(dt*solid + (1-solid))')
+            linear_elastic = ""
+            linear_elastic_init = ""
+            md.set_variable('BDFf', [0])
+            md.set_variable('dt', [ins.dt / ins.ndt0])
         else:
             md.add_nonlinear_term(mim, time_int_u)
             md.add_nonlinear_term(mim, "Grad_p.Test_u + BDFf*Grad_Previous_p.Test_u")
@@ -911,9 +872,6 @@ for outfilei in outfiles:
 
             linear_elastic = "(lambda*(Trace(Grad(X(1)*u)))*Div_Test_u + mu*((X(1)*Grad_u + X(1)*Grad_u'):Grad_Test_u + [u(1)/X(1),0]:Test_u))"
             linear_elastic_init = "BDFf*(Previous_lambda*(Trace(Grad(X(1)*Previous_u))*Div_Test_u) + Previous_mu*((X(1)*Grad_Previous_u + (X(1)*Grad_Previous_u)'):Grad_Test_u + [Previous_u(1)/X(1),0]:Test_u))"
-
-        #linear_elastic = "(lambda*(((1/X(1))*Trace(Grad(X(1)*u)))*Div_Test_u) + mu*(1/X(1))*((Grad(X(1)*u) + Grad(X(1)*u)'):Grad_Test_u - [0,u(2)/X(1)]:Test_u - [1/2*u(2),1/2*(u(2)/X(1))]:Test_u))"
-        #linear_elastic_init = "BDFf*(Previous_lambda*(((1/X(1))*Trace(Grad(X(1)*Previous_u)))*Div_Test_u) + mu*(1/X(1))*((X(1)*Grad_Previous_u + X(1)*Grad_Previous_u'):Grad_Test_u + [Previous_u(1)/X(1),0]:Test_u))"
 
     if ins.temperature & ins.solidification:
         md.add_nonlinear_term(mim, linear_elastic + '*(dt/BDF0*solid + (1-solid))')
@@ -1201,45 +1159,28 @@ for outfilei in outfiles:
                 md_init.add_normal_source_term_brick(mim_all, var, bound + 'data_d' + var, i + 1)
 
     # add pressure on boundary or free surface
-    if ins.p_basal:
-        p_basal = ins.p_amb * ones_ls
-        if ins.topography:
-            p_basal -= ls3.values(0)*ins.rho3*9.81
-        elif ins.free_surface:
-            p_basal -= ls1.values(0)*ins.rho1*9.81
 
-        md.add_initialized_fem_data('pbasal', mfls, [p_basal])
-        md_init.add_initialized_fem_data('pbasal', mfls, [p_basal])
+    if 'bottom_left' in ins.p_bound:
+        md_init.add_initialized_data('pbound', [0, 0])
+        md.add_initialized_data('pbound', [0, 0])
+    if 'bottom_right' in ins.p_bound:
+        md_init.add_initialized_data('pbound', [ins.L_x, 0])
+        md.add_initialized_data('pbound', [ins.L_x, 0])
+    if 'top_left' in ins.p_bound:
+        md_init.add_initialized_data('pbound', [0, ins.L_y])
+        md.add_initialized_data('pbound', [0, ins.L_y])
+    if 'top_right' in ins.p_bound:
+        md_init.add_initialized_data('pbound', [ins.L_x, ins.L_y])
+        md.add_initialized_data('pbound', [ins.L_x, ins.L_y])
 
-    #if type(ins.p_bound2) is str:
-    #    md_init.add_Dirichlet_condition_with_multipliers(mim_all, 'p', 1, 8, dataname='p2')
-    #    md.add_Dirichlet_condition_with_multipliers(mim_all, 'p', 1, 8, dataname='p2')
+    md_init.add_initialized_data('pamb0',[ins.p_amb])
+    md.add_initialized_data('pamb0', [ins.p_amb])
 
     if (not ins.free_surface) | ins.solve_air:
-        if ins.p_basal:
-            md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pbasal')
-            md_init.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pbasal')
-        else:
-            md.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pamb')
-            md_init.add_Dirichlet_condition_with_multipliers(mim, 'p', 1, 7, dataname='pamb')
+        md_init.add_pointwise_constraints_with_multipliers('p', 'pbound', 'pamb0')
+        md.add_pointwise_constraints_with_multipliers('p', 'pbound', 'pamb0')
     else:
-        md.add_Dirichlet_condition_with_multipliers(mim_surf, 'p', 1, -1, dataname='pamb')
-
-    #if ins.topography:
-    #    if 'no_slip' in ins.basal_velocity:
-    #        md.add_initialized_fem_data('no_slip', mfp0, [0 * ones_p0, 0 * ones_p0])
-    #        md.add_Dirichlet_condition_with_multipliers(mim_base, 'u', 2, -1, dataname='no_slip')
-
-    #        md_init.add_initialized_fem_data('no_slip', mfp0, [0 * ones_p0, 0 * ones_p0])
-    #        md_init.add_Dirichlet_condition_with_multipliers(mim_base, 'u', 2, -1, dataname='no_slip')
-
-    #    if 'no_normal' in ins.basal_velocity:
-    #        md.add_initialized_fem_data('no_normal', mfp0, [0 * ones_p0, 0 * ones_p0])
-    #        md.add_normal_source_term_brick(mim_base, 'u', -1, dataname='no_normal')
-
-    #        md_init.add_initialized_fem_data('no_normal', mfp0, [0 * ones_p0, 0 * ones_p0])
-    #        md_init.add_normal_source_term_brick(mim_base, 'u', -1, dataname='no_normal')
-
+        md.add_nonlinear_term(mim_surf, '1e10*(p-pamb)*Test_p')
 
     if ins.temperature:
         for i, bound in enumerate(bounds):
@@ -1597,6 +1538,8 @@ for outfilei in outfiles:
                 beta[(ls1_mat > 0)] = ins.beta2
             if ins.topography:
                 beta[ls3_mat < 0] = ins.beta3
+
+            #beta[beta < (1e-9) / rho] = (1e-9) / rho [beta < (1e-9) / rho]
             md.set_variable('beta', beta)
 
         if ins.temperature:
@@ -1742,15 +1685,6 @@ for outfilei in outfiles:
                 if neumann:
                     md.set_variable(bound + 'data_d' + var, [(1 + md.variable('BDFf')) * data_dx, (1 + md.variable('BDFf')) * data_dy])
 
-        if ins.p_basal:
-            p_basal = ins.p_amb * ones_ls
-            if ins.topography:
-                p_basal -= ls3.values(0) * ins.rho3 * 9.81
-            elif ins.free_surface:
-                p_basal -= ls1.values(0) * ins.rho1 * 9.81
-
-            md.set_variable('pbasal', [p_basal])
-
         if ins.temperature:
             for i, bound in enumerate(bounds):
                 dirichlet = False
@@ -1815,6 +1749,9 @@ for outfilei in outfiles:
                             md.set_variable('basal_flux', [x_t*ins.kappa1 * (T - ins.basal_temp_i) / radii_t * ones_t])
 
         for j in np.arange(ins.n_outer_iter):
+
+            print('BDFf = ' + str(md.variable('BDFf')))
+            print('dt = ' + str(md.variable('dt')))
 
             solve_iter = False
             if j == 0:
