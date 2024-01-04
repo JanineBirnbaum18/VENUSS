@@ -16,7 +16,7 @@ from curvature import *
 from math import erf
 from shapely.plotting import plot_polygon
 
-outfiles = ['cavity_30x']
+outfiles = ['relax_29x_01t']
 #for xi in ['30','60','120']:
 #    for dti in ['0.1','0.033','0.01','0.0033']:
 #        outfiles = np.append(outfiles,'surface_relaxation_' + xi + 'x_' + dti + 't')
@@ -159,8 +159,9 @@ for outfilei in outfiles:
     if ins.free_surface:
         ls1 = gf.LevelSet(mesh, ins.ls_k, ins.ls1p, ins.ls1s)
         mls = gf.MeshLevelSet(mesh)
-        mlsxfem = gf.MeshLevelSet(mesh)
         mls.add(ls1)
+
+        mlsxfem = gf.MeshLevelSet(mesh)
         if ins.topography:
             ls1xfem = gf.LevelSet(mesh, ins.ls_k, ins.ls1p, '-(' + ins.ls3p + ')')
             mlsxfem.add(ls1xfem)
@@ -184,7 +185,8 @@ for outfilei in outfiles:
     if ins.restart:
         if ins.free_surface:
             ls1.set_values(last_Ls1)
-            ls1xfem.set_values(last_Ls1,'-(' + ins.ls3p + ')')
+            if ins.topography:
+                ls1xfem.set_values(last_Ls1,'-(' + ins.ls3p + ')')
 
     if ins.free_surface | ins.topography:
         mls.adapt()
@@ -320,9 +322,12 @@ for outfilei in outfiles:
         mfp_cutoff0.set_classical_fem(1)
         mf_cutoff = gf.GlobalFunction('cutoff',1,np.sqrt(dx**2 + dy**2),np.sqrt(dx**2 + dy**2)/100,np.sqrt(dx**2 + dy**2))
         mf_cutoff_ls1 = gf.MeshFem('global function',mesh,ls1,[mf_cutoff],2)
-        mf_cutoff_ls3 = gf.MeshFem('global function', mesh, ls3, [mf_cutoff], 2)
-        mfp_cutoff1 = gf.MeshFem('product', mf_cutoff_ls1, mfp_cutoff0)
-        mfp_cutoff = gf.MeshFem('product', mf_cutoff_ls3, mfp_cutoff1)
+        if ins.topography:
+            mf_cutoff_ls3 = gf.MeshFem('global function', mesh, ls3, [mf_cutoff], 2)
+            mfp_cutoff1 = gf.MeshFem('product', mf_cutoff_ls1, mfp_cutoff0)
+            mfp_cutoff = gf.MeshFem('product', mf_cutoff_ls3, mfp_cutoff1)
+        else:
+            mfp_cutoff = gf.MeshFem('product', mf_cutoff_ls1, mfp_cutoff0)
 
         #mfp = gf.MeshFem('levelset', mlsxfem, mfp_xfem0)
         mfp = gf.MeshFem('sum', mfp_cutoff, mfp0)
@@ -330,20 +335,29 @@ for outfilei in outfiles:
         DOFpts_p = mfp0.basic_dof_nodes()
         enriched_dofs1 = (np.nonzero(
             np.abs(compute_interpolate_on(mfls, ls1.values(0), DOFpts_p)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-        enriched_dofs3 = (np.nonzero(
-            np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_p)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-        enriched_dofs = np.append(enriched_dofs1,enriched_dofs3)
+        if ins.topography:
+            enriched_dofs3 = (np.nonzero(
+                np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_p)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
+            enriched_dofs = np.append(enriched_dofs1,enriched_dofs3)
+        else:
+            enriched_dofs = enriched_dofs1
         enriched_dofs = enriched_dofs[enriched_dofs > 1]
         mfp_cutoff.set_enriched_dofs(enriched_dofs)
 
         DOFpts_mat = mfmat0.basic_dof_nodes()
-        mfmat_cutoff1 = gf.MeshFem('product', mf_cutoff_ls1, mfmat_cutoff0)
-        mfmat_cutoff = gf.MeshFem('product', mf_cutoff_ls3, mfmat_cutoff1)
+        if ins.topography:
+            mfmat_cutoff1 = gf.MeshFem('product', mf_cutoff_ls1, mfmat_cutoff0)
+            mfmat_cutoff = gf.MeshFem('product', mf_cutoff_ls3, mfmat_cutoff1)
+        else:
+            mfmat_cutoff = gf.MeshFem('product', mf_cutoff_ls1, mfmat_cutoff0)
         enriched_dofs1 = (np.nonzero(
             np.abs(compute_interpolate_on(mfls, ls1.values(0), DOFpts_mat)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-        enriched_dofs3 = (np.nonzero(
-            np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_mat)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-        enriched_dofs = np.append(enriched_dofs1, enriched_dofs3)
+        if ins.topography:
+            enriched_dofs3 = (np.nonzero(
+                np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_mat)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
+            enriched_dofs = np.append(enriched_dofs1, enriched_dofs3)
+        else:
+            enriched_dofs = enriched_dofs1
         enriched_dofs = enriched_dofs[enriched_dofs > 1]
         mfmat_cutoff.set_enriched_dofs(enriched_dofs)
         mfmat = gf.MeshFem('sum', mfmat_cutoff, mfmat0)
@@ -835,7 +849,8 @@ for outfilei in outfiles:
 
     if ins.free_surface & ins.solve_air:
         md.add_nonlinear_term(mim_fluidbound, "1e6*((Xfem_plus(p)-Xfem_minus(p))+surface_tension*curvature).(Xfem_plus(Test_p)-Xfem_minus(Test_p))")
-        md.add_nonlinear_term(mim_fluidbound, "1e8*((Xfem_plus(t)-Xfem_minus(t))-(1150-tamb)/2).(Xfem_plus(Test_t)-Xfem_minus(Test_t))")
+        if ins.temperature:
+            md.add_nonlinear_term(mim_fluidbound, "1e8*((Xfem_plus(t)-Xfem_minus(t))-(1150-tamb)/2).(Xfem_plus(Test_t)-Xfem_minus(Test_t))")
 
     # mometum balance
     if ins.compressible:
@@ -1177,8 +1192,8 @@ for outfilei in outfiles:
     md.add_initialized_data('pamb0', [ins.p_amb])
 
     if (not ins.free_surface) | ins.solve_air:
-        md_init.add_pointwise_constraints_with_multipliers('p', 'pbound', 'pamb0')
-        md.add_pointwise_constraints_with_multipliers('p', 'pbound', 'pamb0')
+        md_init.add_pointwise_constraints_with_penalization('p',1e8,'pbound','pamb0')
+        md.add_pointwise_constraints_with_penalization('p',1e8,'pbound','pamb0')
     else:
         md.add_nonlinear_term(mim_surf, '1e10*(p-pamb)*Test_p')
 
@@ -1312,8 +1327,7 @@ for outfilei in outfiles:
                 true_u[1::2] = eval(ins.true_uy.replace('X', 'x_u').replace('Y', 'y_u'))[1::2]
                 mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_utrue_' + numstr + '.vtk',
                                   true_u)
-                err_u[0] = compute_L2_dist(mfu, u_init, mim, mfu, true_u) / compute_L2_norm(mfu,
-                                                                                                      true_u, mim)
+                err_u[0] = compute_L2_dist(mfu, u_init, mim, mfu, true_u) / compute_L2_norm(mfu,true_u, mim)
             else:
                 err_u[0] = compute_L2_norm(mfu, u_init, mim)
             mfp0.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + numstr + '.vtk', p_init)
@@ -1750,9 +1764,6 @@ for outfilei in outfiles:
 
         for j in np.arange(ins.n_outer_iter):
 
-            print('BDFf = ' + str(md.variable('BDFf')))
-            print('dt = ' + str(md.variable('dt')))
-
             solve_iter = False
             if j == 0:
                 md.enable_variable('u')
@@ -2062,7 +2073,8 @@ for outfilei in outfiles:
                     md.set_variable('psi',psi)
 
                 ls1.set_values(md.variable('psi'))
-                ls1xfem.set_values(md.variable('psi'),'-(' + ins.ls3p + ')')
+                if ins.topography:
+                    ls1xfem.set_values(md.variable('psi'),'-(' + ins.ls3p + ')')
                 itr = 0
                 #if ins.influx:
                 #    d_area = ins.dt * ((ins.influx_right - ins.influx_left) * eval(ins.influx_uy) + (
@@ -2075,7 +2087,6 @@ for outfilei in outfiles:
                             ls1xfem.set_values(ls1.values(0),'-(' + ins.ls3p + ')')
                         else:
                             ls1.set_values(ls1.values(0) + (area - expected_area) / pts.shape[1] / np.sqrt(dx ** 2 + dy ** 2) / 2)
-                            ls1xfem.set_values(ls1.values(0),'-(' + ins.ls3p + ')')
                     itr += 1
                     mls.adapt()
                     mlsxfem.adapt()
@@ -2117,8 +2128,9 @@ for outfilei in outfiles:
                 mim.adapt()
                 mim_surf.adapt()
                 mim_fluidbound.adapt()
-                mim_base.adapt()
-                mim_topo.adapt()
+                if ins.topography:
+                    mim_base.adapt()
+                    mim_topo.adapt()
                 mim_all.adapt()
                 mim_integ.adapt()
 
@@ -2141,17 +2153,23 @@ for outfilei in outfiles:
 
                 enriched_dofs1 = (np.nonzero(
                     np.abs(compute_interpolate_on(mfls, ls1.values(0), DOFpts_p)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-                enriched_dofs3 = (np.nonzero(
-                    np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_p)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-                enriched_dofs = np.append(enriched_dofs1, enriched_dofs3)
+                if ins.topography:
+                    enriched_dofs3 = (np.nonzero(
+                        np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_p)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
+                    enriched_dofs = np.append(enriched_dofs1, enriched_dofs3)
+                else:
+                    enriched_dofs = enriched_dofs1
                 enriched_dofs = enriched_dofs[enriched_dofs > 1]
                 mfp_cutoff.set_enriched_dofs(enriched_dofs)
 
                 enriched_dofs1 = np.nonzero(
                     np.abs(compute_interpolate_on(mfls, ls1.values(0), DOFpts_mat)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1
-                enriched_dofs3 = np.nonzero(
-                    np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_mat)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1
-                enriched_dofs = np.append(enriched_dofs1, enriched_dofs3)
+                if ins.topography:
+                    enriched_dofs3 = np.nonzero(
+                        np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_mat)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1
+                    enriched_dofs = np.append(enriched_dofs1, enriched_dofs3)
+                else:
+                    enriched_dofs = enriched_dofs1
                 enriched_dofs = enriched_dofs[enriched_dofs > 1]
                 mfmat_cutoff.set_enriched_dofs(enriched_dofs)
 
