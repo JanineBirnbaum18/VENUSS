@@ -16,7 +16,7 @@ from curvature import *
 from math import erf
 from shapely.plotting import plot_polygon
 
-outfiles = ['relax_29x_01t']
+outfiles = ['relax_29x_01t_test']
 #for xi in ['30','60','120']:
 #    for dti in ['0.1','0.033','0.01','0.0033']:
 #        outfiles = np.append(outfiles,'surface_relaxation_' + xi + 'x_' + dti + 't')
@@ -158,15 +158,24 @@ for outfilei in outfiles:
     # free surface
     if ins.free_surface:
         ls1 = gf.LevelSet(mesh, ins.ls_k, ins.ls1p, ins.ls1s)
+        ls1_previous = gf.LevelSet(mesh, ins.ls_k, ins.ls1p, ins.ls1s)
+        ls1_previous2 = gf.LevelSet(mesh, ins.ls_k, ins.ls1p, ins.ls1s)
+        ls1_init = gf.LevelSet(mesh, ins.ls_k, ins.ls1p, ins.ls1s)
         mls = gf.MeshLevelSet(mesh)
         mls.add(ls1)
 
         mlsxfem = gf.MeshLevelSet(mesh)
+        mlsxfem_previous = gf.MeshLevelSet(mesh)
+        mlsxfem_previous2 = gf.MeshLevelSet(mesh)
+        mlsxfem_init = gf.MeshLevelSet(mesh)
         if ins.topography:
             ls1xfem = gf.LevelSet(mesh, ins.ls_k, ins.ls1p, '-(' + ins.ls3p + ')')
             mlsxfem.add(ls1xfem)
         else:
             mlsxfem.add(ls1)
+            mlsxfem_previous.add(ls1_previous)
+            mlsxfem_previous2.add(ls1_previous2)
+            mlsxfem_init.add(ls1_init)
 
     # temperature contour
     if ins.temperature & ins.solidification:
@@ -185,15 +194,16 @@ for outfilei in outfiles:
     if ins.restart:
         if ins.free_surface:
             ls1.set_values(last_Ls1)
+            ls1_previous.set_values(last2_Ls1)
             if ins.topography:
                 ls1xfem.set_values(last_Ls1,'-(' + ins.ls3p + ')')
 
     if ins.free_surface | ins.topography:
         mls.adapt()
         mlsxfem.adapt()
-
-    if ins.free_surface:
-        ls1_init = ls1.values(0)
+        mlsxfem_previous.adapt()
+        mlsxfem_previous2.adapt()
+        mlsxfem_init.adapt()
 
     if ins.plots:
         # visualize mesh points in python
@@ -308,9 +318,6 @@ for outfilei in outfiles:
     mfp0 = gf.MeshFem(mesh, 1)
     mfp0.set_classical_fem(ins.p_k)
 
-    mfp_xfem0 = gf.MeshFem(mesh, 1)
-    mfp_xfem0.set_classical_fem(ins.p_k)
-
     mfmat0 = gf.MeshFem(mesh, 1)
     mfmat0.set_classical_fem(ins.mat_k)
 
@@ -322,15 +329,32 @@ for outfilei in outfiles:
         mfp_cutoff0.set_classical_fem(1)
         mf_cutoff = gf.GlobalFunction('cutoff',1,np.sqrt(dx**2 + dy**2),np.sqrt(dx**2 + dy**2)/100,np.sqrt(dx**2 + dy**2))
         mf_cutoff_ls1 = gf.MeshFem('global function',mesh,ls1,[mf_cutoff],2)
+        mf_cutoff_ls1_previous = gf.MeshFem('global function', mesh, ls1_previous, [mf_cutoff], 2)
+        mf_cutoff_ls1_previous2 = gf.MeshFem('global function', mesh, ls1_previous2, [mf_cutoff], 2)
+        mf_cutoff_ls1_init = gf.MeshFem('global function', mesh, ls1_init, [mf_cutoff], 2)
         if ins.topography:
             mf_cutoff_ls3 = gf.MeshFem('global function', mesh, ls3, [mf_cutoff], 2)
-            mfp_cutoff1 = gf.MeshFem('product', mf_cutoff_ls1, mfp_cutoff0)
-            mfp_cutoff = gf.MeshFem('product', mf_cutoff_ls3, mfp_cutoff1)
+            mfp_cutoff3 = gf.MeshFem('product', mf_cutoff_ls3, mfp_cutoff0)
+            mfp_cutoff = gf.MeshFem('product', mf_cutoff_ls1, mfp_cutoff3)
+            mfp_cutoff_previous = gf.MeshFem('product', mf_cutoff_ls1_previous, mfp_cutoff3)
+            mfp_cutoff_previous2 = gf.MeshFem('product', mf_cutoff_ls1_previous2, mfp_cutoff3)
+            mfp_cutoff_init = gf.MeshFem('product', mf_cutoff_ls1_init, mfp_cutoff3)
         else:
             mfp_cutoff = gf.MeshFem('product', mf_cutoff_ls1, mfp_cutoff0)
+            mfp_cutoff_previous = gf.MeshFem('product', mf_cutoff_ls1_previous, mfp_cutoff0)
+            mfp_cutoff_previous2 = gf.MeshFem('product', mf_cutoff_ls1_previous2, mfp_cutoff0)
+            mfp_cutoff_init = gf.MeshFem('product', mf_cutoff_ls1_init, mfp_cutoff0)
 
-        #mfp = gf.MeshFem('levelset', mlsxfem, mfp_xfem0)
-        mfp = gf.MeshFem('sum', mfp_cutoff, mfp0)
+        mfp = gf.MeshFem('levelset', mlsxfem, mfp0)
+        mfp_previous = gf.MeshFem('levelset', mlsxfem_previous, mfp0)
+        mfp_previous2 = gf.MeshFem('levelset', mlsxfem_previous2, mfp0)
+        mfp_init = gf.MeshFem('levelset', mlsxfem_init, mfp0)
+
+
+        #mfp = gf.MeshFem('sum', mfp_cutoff, mfp0)
+        #mfp_previous = gf.MeshFem('sum', mfp_cutoff_previous, mfp0)
+        #mfp_previous2 = gf.MeshFem('sum', mfp_cutoff_previous2, mfp0)
+        #mfp_init = gf.MeshFem('sum', mfp_cutoff_init, mfp0)
 
         DOFpts_p = mfp0.basic_dof_nodes()
         enriched_dofs1 = (np.nonzero(
@@ -338,29 +362,47 @@ for outfilei in outfiles:
         if ins.topography:
             enriched_dofs3 = (np.nonzero(
                 np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_p)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-            enriched_dofs = np.append(enriched_dofs1,enriched_dofs3)
+            enriched_dofsp = np.append(enriched_dofs1,enriched_dofs3)
         else:
-            enriched_dofs = enriched_dofs1
-        enriched_dofs = enriched_dofs[enriched_dofs > 1]
-        mfp_cutoff.set_enriched_dofs(enriched_dofs)
+            enriched_dofsp = enriched_dofs1
+        enriched_dofsp = enriched_dofsp[enriched_dofsp > 1]
+        mfp_cutoff.set_enriched_dofs(enriched_dofsp)
+        mfp_cutoff_previous.set_enriched_dofs(enriched_dofsp)
+        mfp_cutoff_previous2.set_enriched_dofs(enriched_dofsp)
+        mfp_cutoff_init.set_enriched_dofs(enriched_dofsp)
+        enriched_dofsp_previous = enriched_dofsp
 
         DOFpts_mat = mfmat0.basic_dof_nodes()
         if ins.topography:
-            mfmat_cutoff1 = gf.MeshFem('product', mf_cutoff_ls1, mfmat_cutoff0)
-            mfmat_cutoff = gf.MeshFem('product', mf_cutoff_ls3, mfmat_cutoff1)
+            mfmat_cutoff3 = gf.MeshFem('product', mf_cutoff_ls3, mfmat_cutoff0)
+            mfmat_cutoff = gf.MeshFem('product', mf_cutoff_ls1, mfmat_cutoff1)
+            mfmat_cutoff_previous = gf.MeshFem('product', mf_cutoff_ls1_previous, mfmat_cutoff1)
+            mfmat_cutoff_previous2 = gf.MeshFem('product', mf_cutoff_ls1_previous2, mfmat_cutoff1)
+            mfmat_cutoff_init = gf.MeshFem('product', mf_cutoff_ls1_init, mfmat_cutoff1)
         else:
             mfmat_cutoff = gf.MeshFem('product', mf_cutoff_ls1, mfmat_cutoff0)
+            mfmat_cutoff_previous = gf.MeshFem('product', mf_cutoff_ls1_previous, mfmat_cutoff0)
+            mfmat_cutoff_previous2 = gf.MeshFem('product', mf_cutoff_ls1_previous2, mfmat_cutoff0)
+            mfmat_cutoff_init = gf.MeshFem('product', mf_cutoff_ls1_init, mfmat_cutoff0)
         enriched_dofs1 = (np.nonzero(
             np.abs(compute_interpolate_on(mfls, ls1.values(0), DOFpts_mat)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
         if ins.topography:
             enriched_dofs3 = (np.nonzero(
                 np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_mat)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-            enriched_dofs = np.append(enriched_dofs1, enriched_dofs3)
+            enriched_dofsmat = np.append(enriched_dofs1, enriched_dofs3)
         else:
-            enriched_dofs = enriched_dofs1
-        enriched_dofs = enriched_dofs[enriched_dofs > 1]
-        mfmat_cutoff.set_enriched_dofs(enriched_dofs)
-        mfmat = gf.MeshFem('sum', mfmat_cutoff, mfmat0)
+            enriched_dofsmat = enriched_dofs1
+        enriched_dofsmat = enriched_dofsmat[enriched_dofsmat > 1]
+        enriched_dofsmat_previous = enriched_dofsmat
+        mfmat_cutoff.set_enriched_dofs(enriched_dofsmat)
+        mfmat_cutoff_previous.set_enriched_dofs(enriched_dofsmat)
+        mfmat_cutoff_previous2.set_enriched_dofs(enriched_dofsmat)
+        mfmat_cutoff_init.set_enriched_dofs(enriched_dofsmat)
+        #mfmat = gf.MeshFem('sum', mfmat_cutoff, mfmat0)
+        mfmat = gf.MeshFem('levelset', mlsxfem, mfmat0)
+        mfmat_previous = gf.MeshFem('levelset', mlsxfem_previous, mfmat0)
+        mfmat_previous2 = gf.MeshFem('levelset', mlsxfem_previous2, mfmat0)
+        mfmat_init = gf.MeshFem('levelset', mlsxfem_init, mfmat0)
     else:
         mfp = gf.MeshFem(mesh, 1)  # scalar field
         mfp.set_classical_fem(ins.p_k)  # continuous piecewise linear
@@ -394,10 +436,11 @@ for outfilei in outfiles:
                 enriched_dofs3 = (np.nonzero(
                     np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_t)) < (np.sqrt(dx ** 2 + dy ** 2)))[
                                       0] + 1)
-                enriched_dofs = np.append(enriched_dofs1, enriched_dofs3)
-                enriched_dofs = enriched_dofs[enriched_dofs > 1]
+                enriched_dofst = np.append(enriched_dofs1, enriched_dofs3)
+                enriched_dofst = enriched_dofst[enriched_dofst > 1]
+                enriched_dofst_previous = enriched_dofst
 
-                mft_cutoff.set_enriched_dofs(enriched_dofs)
+                mft_cutoff.set_enriched_dofs(enriched_dofst)
 
                 #mft = gf.MeshFem('levelset', mlsxfem, mft_xfem0)
                 mft = gf.MeshFem('sum', mft_cutoff, mft0)
@@ -456,6 +499,12 @@ for outfilei in outfiles:
     D_mat = mfmat.basic_dof_nodes()
     ones_mat = np.ones(D_mat.shape[1])
     x_mat = D_mat[0,:]
+    y_mat = D_mat[1, :]
+
+    D_mat0 = mfmat0.basic_dof_nodes()
+    ones_mat0 = np.ones(D_mat0.shape[1])
+    x_mat0 = D_mat0[0, :]
+    y_mat0 = D_mat0[0, :]
 
     if ins.temperature:
         D_t = mft0.basic_dof_nodes()
@@ -524,8 +573,8 @@ for outfilei in outfiles:
     if ins.restart:
         md.add_initialized_fem_data('Previous_u', mfu, U)
         md.add_initialized_fem_data('Previous2_u', mfu, Previous_u)
-        md.add_initialized_fem_data('Previous_p', mfp0, P)
-        md.add_initialized_fem_data('Previous2_p', mfp0, Previous_p)
+        md.add_initialized_fem_data('Previous_p', mfp_previous, P)
+        md.add_initialized_fem_data('Previous2_p', mfp_previous2, Previous_p)
         md.add_initialized_fem_data('Previous_d', mfu, D)
         md.add_initialized_fem_data('Previous2_d', mfu, Previous_d)
         if ins.free_surface:
@@ -539,13 +588,13 @@ for outfilei in outfiles:
 
     else:
         u_init = ones_u * 0
-        p_init = ones_p0 * ins.p_amb
+        p_init = ones_p * ins.p_amb
         d_init = ones_u * 0
         md.add_initialized_fem_data('Previous_u', mfu, u_init)
         md.add_initialized_fem_data('Previous2_u', mfu, u_init)
-        md.add_initialized_fem_data('p_init', mfp0, p_init)
-        md.add_initialized_fem_data('Previous_p', mfp0, p_init)
-        md.add_initialized_fem_data('Previous2_p', mfp0, p_init)
+        md.add_initialized_fem_data('p_init', mfp_init, p_init)
+        md.add_initialized_fem_data('Previous_p', mfp_previous, p_init)
+        md.add_initialized_fem_data('Previous2_p', mfp_previous2, p_init)
         md.add_initialized_fem_data('Previous_d', mfu, d_init)
         md.add_initialized_fem_data('Previous2_d', mfu, d_init)
         if ins.free_surface:
@@ -561,19 +610,20 @@ for outfilei in outfiles:
 
     # Density
     if ins.free_surface:
-        ls1_mat = compute_interpolate_on(mfls,ls1.values(0),mfmat)
+        ls1_mat = compute_interpolate_on(mfls,ls1.values(0),mfmat.basic_dof_nodes())
     if ins.topography:
-        ls3_mat = compute_interpolate_on(mfls,ls3.values(0),mfmat)
+        ls3_mat = compute_interpolate_on(mfls,ls3.values(0),mfmat.basic_dof_nodes())
     rho = ones_mat * ins.rho1
     if ins.free_surface:
         rho[ls1_mat > 0] = ins.rho2
     if ins.topography:
         rho[ls3_mat < 0] = ins.rho3
+    Previous_rho = rho.copy()
     rho_init = rho.copy()
     md.add_initialized_fem_data('rho', mfmat, rho)
-    md.add_initialized_fem_data('Previous_rho', mfmat, rho)
-    md.add_initialized_fem_data('Previous2_rho', mfmat, rho)
-    md.add_initialized_fem_data('rho_init', mfmat, rho)
+    md.add_initialized_fem_data('Previous_rho', mfmat_previous, rho)
+    md.add_initialized_fem_data('Previous2_rho', mfmat_previous2, rho)
+    md.add_initialized_fem_data('rho_init', mfmat_init, rho)
     md_init.add_initialized_fem_data('rho', mfmat, rho)
 
     md.add_initialized_fem_data('pamb', mfp0, [ins.p_amb * ones_p0])
@@ -592,11 +642,11 @@ for outfilei in outfiles:
         if ins.topography:
             beta[ls3_mat < 0] = ins.beta3
     else:
-        beta = ones_mat * (1e-9)/rho
+        beta = ones_mat * (1e-9) / rho
     #beta[beta<(1e-9)/rho] = (1e-9)/rho[beta<(1e-9)/rho]
     beta_init = beta.copy()
     md.add_initialized_fem_data('beta', mfmat, beta)
-    md.add_initialized_fem_data('Previous_beta', mfmat, beta)
+    md.add_initialized_fem_data('Previous_beta', mfmat_previous, beta)
 
     if ins.temperature:
         # Thermal diffusivity
@@ -607,7 +657,7 @@ for outfilei in outfiles:
             kappa[ls3_mat < 0] = ins.kappa3
         kappa_init = kappa.copy()
         md.add_initialized_fem_data('kappa', mfmat, kappa)
-        md.add_initialized_fem_data('Previous_kappa', mfmat, kappa)
+        md.add_initialized_fem_data('Previous_kappa', mfmat_previous, kappa)
 
         cp = ones_mat * ins.cp1
         if ins.free_surface:
@@ -644,7 +694,7 @@ for outfilei in outfiles:
             md.add_initialized_fem_data('ttemp', mft0, [t_init])
             md.add_initialized_fem_data('Previous2_t', mft0, t_init)
 
-        T_mat = compute_interpolate_on(mft0, t_init, mfmat)
+        T_mat = compute_interpolate_on(mft0, t_init, mfmat.basic_dof_nodes())
         eta_exp = ins.eta_exp.replace('vfta', str(ins.vfta)).replace('vftb', str(ins.vftb)).replace(
             'vftc', str(ins.vftc)).replace('etar', str(ins.etar))
         eta = eval(eta_exp.replace('exp', 'np.exp').replace('T', 'T_mat'))
@@ -679,12 +729,12 @@ for outfilei in outfiles:
     lam = -2/3*eta
     mu = eta
     solid = 0 * ones_mat
-    topo = ones_ls
+    topo = 1*ones_mat
 
     if ins.temperature & ins.solidification:
         mu_solid = ins.E / (2 * (1 + ins.nu))
         lam_solid = ins.E * ins.nu / ((1 + ins.nu) * (1 - 2 * ins.nu)) + mu_solid
-        ls2_mat = compute_interpolate_on(mft0,ls2.values(0),mfmat)
+        ls2_mat = compute_interpolate_on(mft0,ls2.values(0),mfmat.basic_dof_nodes())
         if ins.free_surface:
             lam[(ls1_mat <= 0) & (ls2_mat < 0)] = lam_solid
             mu[(ls1_mat <= 0) & (ls2_mat < 0)] = mu_solid
@@ -706,7 +756,8 @@ for outfilei in outfiles:
         md.set_variable('Previous_beta',beta)
 
     if ins.topography:
-        topo[ls3.values(0)<0] = 0
+        ls3_mat = compute_interpolate_on(mft0, ls3.values(0), mfmat.basic_dof_nodes())
+        topo[ls3_mat<0] = 0
 
     md.add_initialized_fem_data('lambda', mfmat, lam)
     md.add_initialized_fem_data('mu', mfmat, mu)
@@ -716,9 +767,9 @@ for outfilei in outfiles:
     md.add_initialized_fem_data('E', mfmat, ins.E*solid)
     md.add_initialized_fem_data('nu', mfmat, ins.nu*solid)
 
-    md.add_initialized_fem_data('Previous_lambda', mfmat, lam)
-    md.add_initialized_fem_data('Previous_mu', mfmat, mu)
-    md.add_initialized_fem_data('Previous_solid', mfmat, solid)
+    md.add_initialized_fem_data('Previous_lambda', mfmat_previous, lam)
+    md.add_initialized_fem_data('Previous_mu', mfmat_previous, mu)
+    md.add_initialized_fem_data('Previous_solid', mfmat_previous, solid)
 
     md_init.add_initialized_fem_data('lambda', mfmat, lam)
     md_init.add_initialized_fem_data('mu', mfmat, mu)
@@ -1084,7 +1135,7 @@ for outfilei in outfiles:
             f_xi = ones_mat * ins.f_x
         elif type(ins.f_x) is str:
             P_mat = ins.p_amb*ones_mat
-            f_xi = eval(ins.f_x.replace('Y', 'y_ls').replace('X', 'x_ls')) * ones_mat
+            f_xi = eval(ins.f_x.replace('Y', 'y_mat').replace('X', 'x_mat')) * ones_mat
         elif type(ins.f_x) is type(None):
             f_xi = ones_mat * 0
 
@@ -1092,7 +1143,7 @@ for outfilei in outfiles:
             f_yi = ones_mat * ins.f_y
         elif type(ins.f_y) is str:
             P_mat = ins.p_amb * ones_mat
-            f_yi = eval(ins.f_y.replace('Y', 'y_ls').replace('X', 'x_ls')) * ones_mat
+            f_yi = eval(ins.f_y.replace('Y', 'y_mat').replace('X', 'x_mat')) * ones_mat
         elif type(ins.f_y) is type(None):
             f_yi = ones_mat * 0
 
@@ -1115,30 +1166,30 @@ for outfilei in outfiles:
             dirichlet = False
             H = np.array([[0,0],[0,0]])
             if (type(eval('ins.' + bound + '_' + var + 'x')) is float) or (type(eval('ins.' + bound + '_' + var + 'x')) is int):
-                data_x = eval('ins.' + bound + '_' + var + 'x') * ones_p0
+                data_x = eval('ins.' + bound + '_' + var + 'x') * ones_p
                 H[0,0] = 1
                 dirichlet = True
             if type(eval('ins.' + bound + '_' + var + 'x')) is str:
-                data_x = eval(eval('ins.' + bound + '_' + var + 'x').replace('X','x_p').replace('Y','y_p')) * ones_p0
+                data_x = eval(eval('ins.' + bound + '_' + var + 'x').replace('X','x_p').replace('Y','y_p')) * ones_p
                 dirichlet = True
                 H[0,0] = 1
             if type(eval('ins.' + bound + '_' + var + 'y')) is type(None):
-                data_y = 0 * ones_p0
+                data_y = 0 * ones_p
 
             if (type(eval('ins.' + bound + '_' + var + 'y')) is float) or (type(eval('ins.' + bound + '_' + var + 'y')) is int):
-                data_y = eval('ins.' + bound + '_' + var + 'y') * ones_p0
+                data_y = eval('ins.' + bound + '_' + var + 'y') * ones_p
                 dirichlet = True
                 H[1,1] = 1
             if type(eval('ins.' + bound + '_' + var + 'y')) is str:
-                data_y = eval(eval('ins.' + bound + '_' + var + 'y').replace('X','x_p').replace('Y','y_p')) * ones_p0
+                data_y = eval(eval('ins.' + bound + '_' + var + 'y').replace('X','x_p').replace('Y','y_p')) * ones_p
                 dirichlet = True
                 H[1,1] = 1
             if type(eval('ins.' + bound + '_' + var + 'x')) is type(None):
-                data_x = 0 * ones_p0
+                data_x = 0 * ones_p
 
             if dirichlet:
-                md.add_initialized_fem_data(bound + 'data_' + var, mfp0, [data_x, data_y])
-                md_init.add_initialized_fem_data(bound + 'data_' + var, mfp0, [data_x, data_y])
+                md.add_initialized_fem_data(bound + 'data_' + var, mfp, [data_x, data_y])
+                md_init.add_initialized_fem_data(bound + 'data_' + var, mfp, [data_x, data_y])
                 md.add_initialized_data(bound + 'H_' + var,H)
                 md_init.add_initialized_data(bound + 'H_' + var, H)
 
@@ -1304,7 +1355,7 @@ for outfilei in outfiles:
         if ins.steady | ins.steady_init:
             md_init.solve('max_res', ins.max_residual, 'max_iter', ins.max_iter, 'noisy')
 
-            p_init = compute_interpolate_on(mfp,md_init.variable('p'),mfp0)
+            p_init = compute_interpolate_on(mfp,md_init.variable('p'),mfp_init)
             u_init = md_init.variable('u')
 
         md.set_variable('Previous_p', p_init)
@@ -1330,7 +1381,7 @@ for outfilei in outfiles:
                 err_u[0] = compute_L2_dist(mfu, u_init, mim, mfu, true_u) / compute_L2_norm(mfu,true_u, mim)
             else:
                 err_u[0] = compute_L2_norm(mfu, u_init, mim)
-            mfp0.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + numstr + '.vtk', p_init)
+            mfp_init.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_P_' + numstr + '.vtk', p_init)
             if ins.true_p:
                 mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ptrue_' + numstr + '.vtk',
                                   eval(ins.true_p.replace('X', 'x_p').replace('Y', 'y_p')))
@@ -1340,7 +1391,7 @@ for outfilei in outfiles:
                     mfp,
                     eval(ins.true_p.replace('X', 'x_p').replace('Y', 'y_p')), mim)
             else:
-                err_p[0] = compute_L2_norm(mfp0, p_init, mim)
+                err_p[0] = compute_L2_norm(mfp_init, p_init, mim)
             if ins.free_surface:
                 mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + numstr + '.vtk',
                                    ls1.values(0))
@@ -1400,8 +1451,8 @@ for outfilei in outfiles:
         hf.create_dataset('last_u', data=u_init)
         hf.create_dataset('last2_u', data=u_init)
         hf.create_dataset('err_u', data=err_u, maxshape=(None,))
-        hf.create_dataset('last_p', data=p_init)
-        hf.create_dataset('last2_p', data=p_init)
+        hf.create_dataset('last_p', data=compute_interpolate_on(mfp_init,p_init,mfp0))
+        hf.create_dataset('last2_p', data=compute_interpolate_on(mfp_init,p_init,mfp0))
         hf.create_dataset('err_p', data=err_p, maxshape=(None,))
         hf.create_dataset('last_d', data=d_init)
         hf.create_dataset('last2_d', data=d_init)
@@ -1479,290 +1530,312 @@ for outfilei in outfiles:
                 md.set_variable('dt', ins.dt / ins.ndt0)
 
         if np.abs(ti - ins.dt)<(ins.dt/100):
+            ls1_previous2.set_values(ls1_init.values(0))
+            ls1_previous.set_values(ls1.values(0))
+            mlsxfem_previous.adapt()
+            mlsxfem_previous2.adapt()
+            mfp_previous.adapt()
+            mfp_previous2.adapt()
+            mfmat_previous.adapt()
+            mfmat_previous2.adapt()
+
+
             md.set_variable('Previous2_u', u_init)
-            md.set_variable('Previous_u', U)
+            md.set_variable('Previous_u', md.variable('u'))
 
             md.set_variable('Previous2_p', p_init)
-            md.set_variable('Previous_p', P)
+            md.set_variable('Previous_p', md.variable('p'))
 
             md.set_variable('Previous2_d', d_init)
-            md.set_variable('Previous_d', D)
+            md.set_variable('Previous_d', md.variable('d'))
 
             if ins.temperature:
                 md.set_variable('Previous2_t', t_init)
-                md.set_variable('Previous_t', T)
+                md.set_variable('Previous_t', md.variable('t'))
 
             if ins.free_surface:
                 md.set_variable('Previous2_psi', psi_init)
                 md.set_variable('Previous_psi', ls1.values(0))
 
+            mfmat_previous2.adapt()
             md.set_variable('Previous2_rho', rho_init)
             if ins.ndt0>1:
                 md.set_variable('dt', [ins.dt])
 
         else:
-            md.set_variable('Previous2_u', Previous_u)
-            md.set_variable('Previous_u', U)
+            ls1_previous2.set_values(md.variable('Previous_psi'))
+            ls1_previous.set_values(md.variable('psi'))
+            mlsxfem_previous.adapt()
+            mlsxfem_previous2.adapt()
 
-            md.set_variable('Previous2_p', Previous_p)
-            md.set_variable('Previous_p', P)
+            md.set_variable('Previous2_u', md.variable('Previous_u'))
+            md.set_variable('Previous_u', md.variable('u'))
 
-            md.set_variable('Previous2_d', Previous_d)
-            md.set_variable('Previous_d', D)
+            mfp_previous2.adapt()
+            md.set_variable('Previous2_p', md.variable('Previous_p'))
+            mfp_previous.adapt()
+            md.set_variable('Previous_p', md.variable('p'))
+
+            md.set_variable('Previous2_d', md.variable('Previous_d'))
+            md.set_variable('Previous_d', md.variable('d'))
 
             if ins.temperature:
-                md.set_variable('Previous2_t', Previous_t)
-                md.set_variable('Previous_t', T)
+                md.set_variable('Previous2_t', md.variable('Previous_t'))
+                md.set_variable('Previous_t', md.variable('t'))
 
             if ins.free_surface:
                 md.set_variable('Previous2_psi', md.variable('Previous_psi'))
                 md.set_variable('Previous_psi', ls1.values(0))
                 md.set_variable('Previous_fext',fext)
 
+            mfmat_previous2.adapt()
             md.set_variable('Previous2_rho', md.variable('Previous_rho'))
 
-
-        md.set_variable('Previous_rho',rho)
-        md.set_variable('Previous_beta', beta)
+        mfmat_previous.adapt()
+        md.set_variable('Previous_rho',md.variable('rho'))
+        md.set_variable('Previous_beta', md.variable('beta'))
         if ins.temperature:
-            md.set_variable('Previous_kappa', kappa)
+            md.set_variable('Previous_kappa', md.variable('kappa'))
 
-        md.set_variable('Previous_mu', mu)
-        md.set_variable('Previous_lambda', lam)
-        md.set_variable('Previous_solid', solid)
+        md.set_variable('Previous_mu', md.variable('mu'))
+        md.set_variable('Previous_lambda', md.variable('lambda'))
+        md.set_variable('Previous_solid', md.variable('solid'))
 
         md.enable_variable('u')
         md.enable_variable('p')
         if ins.temperature:
             md.enable_variable('t')
 
-        # density
-        if ins.free_surface:
-            ls1_mat = compute_interpolate_on(mfls,ls1.values(0),mfmat)
-            rho[(ls1_mat <= 0)] = ins.rho1
-            rho[(ls1_mat > 0)] = ins.rho2
-        if ins.topography:
-            ls3_mat = compute_interpolate_on(mfls, ls3.values(0), mfmat)
-            rho[ls3_mat < 0] = ins.rho3
-        md.set_variable('rho', rho)
-
-        if ins.compressible:
+        for j in np.arange(ins.n_outer_iter):
+            # density
+            Previous_rho = 1*rho
             if ins.free_surface:
-                beta[(ls1_mat <= 0)] = ins.beta1
-                beta[(ls1_mat > 0)] = ins.beta2
+                ls1_mat = compute_interpolate_on(mfls,ls1.values(0),D_mat)
+                rho = 0*ones_mat
+                rho[(ls1_mat <= 0)] = ins.rho1
+                rho[(ls1_mat > 0)] = ins.rho2
             if ins.topography:
-                beta[ls3_mat < 0] = ins.beta3
+                ls3_mat = compute_interpolate_on(mfls, ls3.values(0), D_mat)
+                rho[ls3_mat < 0] = ins.rho3
+            md.set_variable('rho', rho)
 
-            #beta[beta < (1e-9) / rho] = (1e-9) / rho [beta < (1e-9) / rho]
+            if ins.compressible:
+                if ins.free_surface:
+                    beta = 0*ones_mat
+                    beta[(ls1_mat <= 0)] = ins.beta1
+                    beta[(ls1_mat > 0)] = ins.beta2
+                if ins.topography:
+                    beta[ls3_mat < 0] = ins.beta3
+            else:
+                beta = ones_mat * (1e-9) / rho
             md.set_variable('beta', beta)
 
-        if ins.temperature:
-            # thermal diffusivity
-            if ins.free_surface:
-                kappa[(ls1_mat <= 0)] = ins.kappa1
-                kappa[(ls1_mat > 0)] = ins.kappa2
-            if ins.topography:
-                kappa[ls3_mat < 0] = ins.kappa3
-            md.set_variable('kappa', kappa)
+            if ins.temperature:
+                # thermal diffusivity
+                if ins.free_surface:
+                    kappa = 0*ones_mat
+                    kappa[(ls1_mat <= 0)] = ins.kappa1
+                    kappa[(ls1_mat > 0)] = ins.kappa2
+                if ins.topography:
+                    kappa[ls3_mat < 0] = ins.kappa3
+                md.set_variable('kappa', kappa)
 
 
-            # update viscosity field
-            T_mat = compute_interpolate_on(mft0,T,mfmat)
-            ls2_mat = (T_mat - Tg) / Tg
-            eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', 'T_mat').replace('vft','ins.vft').replace('etar','ins.etar'))
-            eta[eta > ins.max_eta] = ins.max_eta
-            eta[T_mat <= ins.vftb/(np.log(ins.max_eta)-ins.vfta) - 273 + ins.vftc] = ins.max_eta
-            if ins.temperature & ins.solidification:
-                #T_ls = compute_interpolate_on(mft,T,mfls)
-                ls2.set_values((T - Tg) / Tg)
+                # update viscosity field
+                T_mat = compute_interpolate_on(mft0,T,mfmat.basic_dof_nodes())
+                ls2_mat = (T_mat - Tg) / Tg
+                eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', 'T_mat').replace('vft','ins.vft').replace('etar','ins.etar'))
+                eta[eta > ins.max_eta] = ins.max_eta
+                eta[T_mat <= ins.vftb/(np.log(ins.max_eta)-ins.vfta) - 273 + ins.vftc] = ins.max_eta
+                if ins.temperature & ins.solidification:
+                    #T_ls = compute_interpolate_on(mft,T,mfls)
+                    ls2.set_values((T - Tg) / Tg)
 
-        else:
-            eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0)).replace('vft','ins.vft').replace('etar','ins.etar')) * ones_mat
-
-        if ins.free_surface:
-            eta[(ls1_mat > 0)] = ins.eta2
-        if ins.topography:
-            eta[ls3_mat < 0] = ins.eta3
-        mu = eta
-
-        lam = -2/3*eta
-        solid = 0 * ones_mat
-        if ins.temperature & ins.solidification:
-            # elasticity
-            if ins.free_surface:
-                lam[(ls1_mat <= 0) & (ls2_mat <= 0)] = lam_solid
-                mu[(ls1_mat <= 0) & (ls2_mat <= 0)] = mu_solid
-                solid[(ls1_mat <= 0) & (ls2_mat <= 0)] = 1
-                beta[(ls1_mat <= 0) & (ls2_mat <= 0)] = 3*(1-2*ins.nu)/ins.E
             else:
-                lam[ls2_mat <= 0] = lam_solid
-                mu[ls2_mat <= 0] = mu_solid
-                solid[ls2_mat <= 0] = 1
-                beta[ls2_mat <= 0] = 3 * (1 - 2 * ins.nu) / ins.E
+                eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0)).replace('vft','ins.vft').replace('etar','ins.etar')) * ones_mat
 
-            solid = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                                       remove_small_objects(sciinterp.griddata(D_mat.transpose(), solid,
-                                                                               np.array([x_grid.flatten(),
-                                                                                         y_grid.flatten()]).transpose(),
-                                                                               method='nearest').reshape(x_grid.shape).astype(int),
-                                                            min_size=25).flatten(),
-                                       D_mat.transpose(), method='nearest')
+            if ins.free_surface:
+                eta[(ls1_mat > 0)] = ins.eta2
+            if ins.topography:
+                eta[ls3_mat < 0] = ins.eta3
+            mu = 1*eta
 
-            md.set_variable('solid', solid)
-            md.set_variable('beta',beta)
+            lam = -2/3*eta
+            solid = 0 * ones_mat
+            if ins.temperature & ins.solidification:
+                # elasticity
+                if ins.free_surface:
+                    lam[(ls1_mat <= 0) & (ls2_mat <= 0)] = lam_solid
+                    mu[(ls1_mat <= 0) & (ls2_mat <= 0)] = mu_solid
+                    solid[(ls1_mat <= 0) & (ls2_mat <= 0)] = 1
+                    beta[(ls1_mat <= 0) & (ls2_mat <= 0)] = 3*(1-2*ins.nu)/ins.E
+                else:
+                    lam[ls2_mat <= 0] = lam_solid
+                    mu[ls2_mat <= 0] = mu_solid
+                    solid[ls2_mat <= 0] = 1
+                    beta[ls2_mat <= 0] = 3 * (1 - 2 * ins.nu) / ins.E
 
-        md.set_variable('lambda', lam)
-        md.set_variable('mu', mu)
-        md.set_variable('E', ins.E*solid)
-        md.set_variable('nu',ins.nu*solid)
+                solid = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                                           remove_small_objects(sciinterp.griddata(D_mat.transpose(), solid,
+                                                                                   np.array([x_grid.flatten(),
+                                                                                             y_grid.flatten()]).transpose(),
+                                                                                   method='nearest').reshape(x_grid.shape).astype(int),
+                                                                min_size=25).flatten(),
+                                           D_mat.transpose(), method='nearest')
 
-        # update body force
-        if (type(ins.f_x) is type(None)) and (type(ins.f_y) is type(None)):
-            f_xi = None
-            f_yi = None
-        else:
-            if (type(ins.f_x) is float) or (type(ins.f_x) is int):
-                f_xi = ones_mat * ins.f_x
-            elif type(ins.f_x) is str:
-                P_mat = compute_interpolate_on(mfmat,P,mfp0)
-                f_xi = eval(ins.f_x.replace('Y', 'y_ls').replace('X', 'x_ls')) * ones_mat
-            elif type(ins.f_x) is type(None):
-                f_xi = ones_mat * 0
+                md.set_variable('solid', solid)
+                md.set_variable('beta',beta)
 
-            if (type(ins.f_y) is float) or (type(ins.f_y) is int):
-                f_yi = ones_mat * ins.f_y
-            elif type(ins.f_y) is str:
-                P_mat = compute_interpolate_on(mfmat,P,mfp0)
-                f_yi = eval(ins.f_y.replace('Y', 'y_ls').replace('X', 'x_ls')) * ones_mat
-            elif type(ins.f_y) is type(None):
-                f_yi = ones_mat * 0
+            md.set_variable('lambda', lam)
+            md.set_variable('mu', mu)
+            md.set_variable('E', ins.E*solid)
+            md.set_variable('nu',ins.nu*solid)
 
-            if ('axial' in ins.symmetry) & (~ins.steady):
-                f_xi = x_mat * f_xi
-                f_yi = x_mat * f_yi
-            md.set_variable('body', [f_xi, f_yi])
+            # update body force
+            if (type(ins.f_x) is type(None)) and (type(ins.f_y) is type(None)):
+                f_xi = None
+                f_yi = None
+            else:
+                if (type(ins.f_x) is float) or (type(ins.f_x) is int):
+                    f_xi = ones_mat * ins.f_x
+                elif type(ins.f_x) is str:
+                    P_mat = compute_interpolate_on(mfp,md.variable('p'),mfmat.basic_dof_nodes())
+                    f_xi = eval(ins.f_x.replace('Y', 'y_mat').replace('X', 'x_mat')) * ones_mat
+                elif type(ins.f_x) is type(None):
+                    f_xi = ones_mat * 0
 
-        # update BCs
-        vars = ['u']
-        for var in vars:
-            for i, bound in enumerate(bounds):
-                # Dirichlet boundaries
-                dirichlet = False
-                if (type(eval('ins.' + bound + '_' + var + 'x')) is float) or (
-                        type(eval('ins.' + bound + '_' + var + 'x')) is int):
-                    data_x = eval('ins.' + bound + '_' + var + 'x') * ones_p0
-                    dirichlet = True
-                if type(eval('ins.' + bound + '_' + var + 'x')) is str:
-                    data_x = eval(eval('ins.' + bound + '_' + var + 'x').replace('X', 'x_p').replace('Y', 'y_p')) * ones_p0
-                    dirichlet = True
-                if type(eval('ins.' + bound + '_' + var + 'y')) is type(None):
-                    data_y = 0 * ones_p0
+                if (type(ins.f_y) is float) or (type(ins.f_y) is int):
+                    f_yi = ones_mat * ins.f_y
+                elif type(ins.f_y) is str:
+                    P_mat = compute_interpolate_on(mfp,md.variable('p'),mfmat.basic_dof_nodes())
+                    f_yi = eval(ins.f_y.replace('Y', 'y_mat').replace('X', 'x_mat')) * ones_mat
+                elif type(ins.f_y) is type(None):
+                    f_yi = ones_mat * 0
 
-                if (type(eval('ins.' + bound + '_' + var + 'y')) is float) or (
-                        type(eval('ins.' + bound + '_' + var + 'y')) is int):
-                    data_y = eval('ins.' + bound + '_' + var + 'y') * ones_p0
-                    dirichlet = True
-                if type(eval('ins.' + bound + '_' + var + 'y')) is str:
-                    data_y = eval(eval('ins.' + bound + '_' + var + 'y').replace('X', 'x_p').replace('Y', 'y_p')) * ones_p0
-                    dirichlet = True
-                if type(eval('ins.' + bound + '_' + var + 'x')) is type(None):
-                    data_x = 0 * ones_p0
+                if ('axial' in ins.symmetry) & (~ins.steady):
+                    f_xi = x_mat * f_xi
+                    f_yi = x_mat * f_yi
+                md.set_variable('body', [f_xi, f_yi])
 
-                if dirichlet:
-                    md.set_variable(bound + 'data_' + var, [data_x, data_y])
+            # update BCs
+            vars = ['u']
+            for var in vars:
+                for i, bound in enumerate(bounds):
+                    # Dirichlet boundaries
+                    dirichlet = False
+                    if (type(eval('ins.' + bound + '_' + var + 'x')) is float) or (
+                            type(eval('ins.' + bound + '_' + var + 'x')) is int):
+                        data_x = eval('ins.' + bound + '_' + var + 'x') * ones_p
+                        dirichlet = True
+                    if type(eval('ins.' + bound + '_' + var + 'x')) is str:
+                        data_x = eval(eval('ins.' + bound + '_' + var + 'x').replace('X', 'x_p').replace('Y', 'y_p')) * ones_p
+                        dirichlet = True
+                    if type(eval('ins.' + bound + '_' + var + 'y')) is type(None):
+                        data_y = 0 * ones_p
 
-                neumann = False
-                if (type(eval('ins.' + bound + '_d' + var + 'x')) is float) or (
-                        type(eval('ins.' + bound + '_d' + var + 'x')) is int):
-                    data_dx = eval('ins.' + bound + '_d' + var + 'x') * ones_u
-                    neumann = True
-                if type(eval('ins.' + bound + '_d' + var + 'x')) is str:
-                    data_dx = eval(eval('ins.' + bound + '_d' + var + 'x')) * ones_u
-                    neumann = True
-                if type(eval('ins.' + bound + '_d' + var + 'y')) is type(None):
-                    data_dy = 0 * ones_u
+                    if (type(eval('ins.' + bound + '_' + var + 'y')) is float) or (
+                            type(eval('ins.' + bound + '_' + var + 'y')) is int):
+                        data_y = eval('ins.' + bound + '_' + var + 'y') * ones_p
+                        dirichlet = True
+                    if type(eval('ins.' + bound + '_' + var + 'y')) is str:
+                        data_y = eval(eval('ins.' + bound + '_' + var + 'y').replace('X', 'x_p').replace('Y', 'y_p')) * ones_p
+                        dirichlet = True
+                    if type(eval('ins.' + bound + '_' + var + 'x')) is type(None):
+                        data_x = 0 * ones_p
 
-                if (type(eval('ins.' + bound + '_d' + var + 'y')) is float) or (
-                        type(eval('ins.' + bound + '_d' + var + 'y')) is int):
-                    data_dy = eval('ins.' + bound + '_d' + var + 'y') * ones_u
-                    neumann = True
-                if type(eval('ins.' + bound + '_d' + var + 'y')) is str:
-                    data_dy = eval(eval('ins.' + bound + '_d' + var + 'y')) * ones_u
-                    neumann = True
-                if type(eval('ins.' + bound + '_d' + var + 'x')) is type(None):
-                    data_dx = 0 * ones_u
+                    if dirichlet:
+                        md.set_variable(bound + 'data_' + var, [data_x, data_y])
+
+                    neumann = False
+                    if (type(eval('ins.' + bound + '_d' + var + 'x')) is float) or (
+                            type(eval('ins.' + bound + '_d' + var + 'x')) is int):
+                        data_dx = eval('ins.' + bound + '_d' + var + 'x') * ones_u
+                        neumann = True
+                    if type(eval('ins.' + bound + '_d' + var + 'x')) is str:
+                        data_dx = eval(eval('ins.' + bound + '_d' + var + 'x')) * ones_u
+                        neumann = True
+                    if type(eval('ins.' + bound + '_d' + var + 'y')) is type(None):
+                        data_dy = 0 * ones_u
+
+                    if (type(eval('ins.' + bound + '_d' + var + 'y')) is float) or (
+                            type(eval('ins.' + bound + '_d' + var + 'y')) is int):
+                        data_dy = eval('ins.' + bound + '_d' + var + 'y') * ones_u
+                        neumann = True
+                    if type(eval('ins.' + bound + '_d' + var + 'y')) is str:
+                        data_dy = eval(eval('ins.' + bound + '_d' + var + 'y')) * ones_u
+                        neumann = True
+                    if type(eval('ins.' + bound + '_d' + var + 'x')) is type(None):
+                        data_dx = 0 * ones_u
+
+                    if 'axial' in ins.symmetry:
+                        data_dx = x_u * data_dx
+                        data_dy = x_u * data_dy
+
+                    if neumann:
+                        md.set_variable(bound + 'data_d' + var, [(1 + md.variable('BDFf')) * data_dx, (1 + md.variable('BDFf')) * data_dy])
+
+            if ins.temperature:
+                for i, bound in enumerate(bounds):
+                    dirichlet = False
+                    # Dirichlet boundaries
+                    if (type(eval('ins.' + bound + '_t')) is float) or (type(eval('ins.' + bound + '_t')) is int):
+                        data_t = eval('ins.' + bound + '_t') * ones_t
+                        dirichlet = True
+                    if type(eval('ins.' + bound + '_t')) is str:
+                        data_t = eval(eval('ins.' + bound + '_t').replace('X', 'x_t').replace('Y', 'y_t')) * ones_t
+                        dirichlet = True
+
+                    if dirichlet:
+                        md.set_variable(bound + 'data_t', [data_t])
+
+                    # Neumann boundaries
+                    else:
+                        if (type(eval('ins.' + bound + '_dt')) is float) or (type(eval('ins.' + bound + '_dt')) is int):
+                            data_t = -eval('ins.' + bound + '_dt') * ones_mat * kappa
+                        if type(eval('ins.' + bound + '_dt')) is str:
+                            data_t = -eval(eval('ins.' + bound + '_dt')) * kappa
+                        if 'axial' in ins.symmetry:
+                            data_t = x_mat * data_t
+                        md.set_variable(bound + 'data_dt', [(1+md.variable('BDFf'))*data_t, (1+md.variable('BDFf'))*data_t])
+
+            # update surface flux
+            if ins.temperature:
+                if ins.free_surface | ins.topography:
+                    mls_cut = mls.cut_mesh()
+                    radii = np.zeros(mls_cut.nbpts())
+                    D_cut = mls_cut.pts()
+                    for pid in mls_cut.pid():
+                        radii[pid] = np.min(mls_cut.convex_radius(mls_cut.cvid_from_pid(pid, share=True)))
+                    if ins.temperature:
+                        radii_t = sciinterp.griddata(D_cut.transpose(), radii, D_t.transpose())
+
+                else:
+                    radii = np.mean(mesh.convex_radius()) * ones_ls
+                    if ins.temperature:
+                        radii_t = np.mean(mesh.convex_radius()) * ones_t
 
                 if 'axial' in ins.symmetry:
-                    data_dx = x_u * data_dx
-                    data_dy = x_u * data_dy
+                    radii_t = radii_t * 2 * np.pi * (x_t + dx / 2)
 
-                if neumann:
-                    md.set_variable(bound + 'data_d' + var, [(1 + md.variable('BDFf')) * data_dx, (1 + md.variable('BDFf')) * data_dy])
-
-        if ins.temperature:
-            for i, bound in enumerate(bounds):
-                dirichlet = False
-                # Dirichlet boundaries
-                if (type(eval('ins.' + bound + '_t')) is float) or (type(eval('ins.' + bound + '_t')) is int):
-                    data_t = eval('ins.' + bound + '_t') * ones_t
-                    dirichlet = True
-                if type(eval('ins.' + bound + '_t')) is str:
-                    data_t = eval(eval('ins.' + bound + '_t').replace('X', 'x_t').replace('Y', 'y_t')) * ones_t
-                    dirichlet = True
-
-                if dirichlet:
-                    md.set_variable(bound + 'data_t', [data_t])
-
-                # Neumann boundaries
-                else:
-                    if (type(eval('ins.' + bound + '_dt')) is float) or (type(eval('ins.' + bound + '_dt')) is int):
-                        data_t = -eval('ins.' + bound + '_dt') * ones_mat * kappa
-                    if type(eval('ins.' + bound + '_dt')) is str:
-                        data_t = -eval(eval('ins.' + bound + '_dt')) * kappa
-                    if 'axial' in ins.symmetry:
-                        data_t = x_mat * data_t
-                    md.set_variable(bound + 'data_dt', [(1+md.variable('BDFf'))*data_t, (1+md.variable('BDFf'))*data_t])
-
-        # update surface flux
-        if ins.temperature:
-            if ins.free_surface | ins.topography:
-                mls_cut = mls.cut_mesh()
-                radii = np.zeros(mls_cut.nbpts())
-                D_cut = mls_cut.pts()
-                for pid in mls_cut.pid():
-                    radii[pid] = np.min(mls_cut.convex_radius(mls_cut.cvid_from_pid(pid, share=True)))
-                if ins.temperature:
-                    radii_t = sciinterp.griddata(D_cut.transpose(), radii, D_t.transpose())
-
-            else:
-                radii = np.mean(mesh.convex_radius()) * ones_ls
-                if ins.temperature:
-                    radii_t = np.mean(mesh.convex_radius()) * ones_t
-
-            if 'axial' in ins.symmetry:
-                radii_t = radii_t * 2 * np.pi * (x_t + dx / 2)
-
-            if ins.free_surface:
-                if type(ins.surface_flux) is str:
-                    surface_flux_budget = ones_t * 0
-                    if 'radiation' in ins.surface_flux:
-                        surface_flux_budget += radii_t / ins.rho1 / ins.cp1 * ins.emissivity * ins.stefan_boltzmann * (1-ins.crust_cover) * (
-                            (ins.T0+273) ** 4 - (ins.T_amb+273) ** 4)
-                    if 'forced convection' in ins.surface_flux:
-                        surface_flux_budget += ins.heat_transfer_coeff * (T - ins.T_amb)
-                    if 'axial' in ins.symmetry:
-                        surface_flux_budget = x_t*surface_flux_budget
-                    md.set_variable('surface_flux', [surface_flux_budget * ones_t])
-
-            if ins.topography & (not ins.solve_topography):
-                if type(ins.basal_flux) is str:
-                    if 'conduction' in ins.basal_flux:
-                        if 'planar' in ins.symmetry:
-                            md.set_variable('basal_flux', [ins.kappa1 * (T - ins.basal_temp_i) / radii_t * ones_t])
+                if ins.free_surface:
+                    if type(ins.surface_flux) is str:
+                        surface_flux_budget = ones_t * 0
+                        if 'radiation' in ins.surface_flux:
+                            surface_flux_budget += radii_t / ins.rho1 / ins.cp1 * ins.emissivity * ins.stefan_boltzmann * (1-ins.crust_cover) * (
+                                (ins.T0+273) ** 4 - (ins.T_amb+273) ** 4)
+                        if 'forced convection' in ins.surface_flux:
+                            surface_flux_budget += ins.heat_transfer_coeff * (T - ins.T_amb)
                         if 'axial' in ins.symmetry:
-                            md.set_variable('basal_flux', [x_t*ins.kappa1 * (T - ins.basal_temp_i) / radii_t * ones_t])
+                            surface_flux_budget = x_t*surface_flux_budget
+                        md.set_variable('surface_flux', [surface_flux_budget * ones_t])
 
-        for j in np.arange(ins.n_outer_iter):
+                if ins.topography & (not ins.solve_topography):
+                    if type(ins.basal_flux) is str:
+                        if 'conduction' in ins.basal_flux:
+                            if 'planar' in ins.symmetry:
+                                md.set_variable('basal_flux', [ins.kappa1 * (T - ins.basal_temp_i) / radii_t * ones_t])
+                            if 'axial' in ins.symmetry:
+                                md.set_variable('basal_flux', [x_t*ins.kappa1 * (T - ins.basal_temp_i) / radii_t * ones_t])
 
             solve_iter = False
             if j == 0:
@@ -1791,11 +1864,8 @@ for outfilei in outfiles:
 
             if j == 0:
                 Previous_p = P
-            P = ones_p0 * ins.p_amb
-            if (ins.free_surface & (~ins.solve_air)) | (ins.topography & (~ins.solve_topography)):
-                P = compute_interpolate_on(mfp_cut, md.variable('p'), mfp0)
-            else:
-                P = compute_interpolate_on(mfp, md.variable('p'), mfp0)
+            P = ones_p * 0
+            P[eval(ind_p)] = md.variable('p')
 
             if ins.temperature:
                 if j == 0:
@@ -1886,11 +1956,11 @@ for outfilei in outfiles:
                     if ins.true_p:
                         mfp0.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ptrue_' + numstr + '.vtk',
                                            eval(ins.true_p.replace('X','x_p').replace('Y','y_p')))
-                        err_p[int(ti / ins.dt)] = compute_L2_dist(mfp0, P, mim, mfp0,
-                                                                  eval(ins.true_p.replace('X','x_p0').replace('Y','y_p0'))) / compute_L2_norm(mfp0,
-                                                                  eval(ins.true_p.replace('X','x_p0').replace('Y','y_p0')),mim)
+                        err_p[int(ti / ins.dt)] = compute_L2_dist(mfp, P, mim, mfp,
+                                                                  eval(ins.true_p.replace('X','x_p').replace('Y','y_p'))) / compute_L2_norm(mfp,
+                                                                  eval(ins.true_p.replace('X','x_p').replace('Y','y_p')),mim)
                     else:
-                        err_p[int(ti / ins.dt)] = compute_L2_norm(mfp0, P, mim)
+                        err_p[int(ti / ins.dt)] = compute_L2_norm(mfp, P, mim)
                     if ins.free_surface:
                         mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + numstr + '.vtk',
                                            md.variable('psi'))
@@ -1922,6 +1992,7 @@ for outfilei in outfiles:
                         else:
                             err_t[int(ti / ins.dt)] = compute_L2_norm(mft0, T, mim)
                         mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + numstr + '.vtk', mu)
+
                         if ins.solidification:
                             mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + numstr + '.vtk', D)
                             if ins.true_dx:
@@ -1944,8 +2015,8 @@ for outfilei in outfiles:
                 hf['last_u'][:] = U
                 hf['last2_u'][:] = Previous_u
                 hf['err_u'][:] = err_u
-                hf['last_p'][:] = P
-                hf['last2_p'][:] = Previous_p
+                hf['last_p'][:] = compute_interpolate_on(mfp,P,mfp0)
+                hf['last2_p'][:] = compute_interpolate_on(mfp_previous,md.variable('Previous_p'),mfp0)
                 hf['err_p'][:] = err_p
                 hf['last_d'][:] = D
                 hf['last2_d'][:] = Previous_d
@@ -1956,7 +2027,7 @@ for outfilei in outfiles:
                     hf['err_t'][:] = err_t
                 if ins.free_surface:
                     hf['last_ls1'][:] = ls1.values(0)
-                    hf['last2_ls1'][:] = md.variable('Previous_psi')
+                    hf['last2_ls1'][:] = ls1_previous.values(0)
                     hf['err_ls1'][:] = err_ls1
                     hf['expected_area'][:] = [expected_area]
                 hf['last_ti'][:] = [ti]
@@ -1984,6 +2055,7 @@ for outfilei in outfiles:
                                            np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='linear').reshape(x_grid.shape)
                 else:
                         Ls3_grid = np.ones_like(x_grid) + np.sqrt(dx ** 2 + dy ** 2)
+
                 eta_grid = sciinterp.griddata(D_mat.transpose(), eta,
                                               np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
                                               method='nearest').reshape(x_grid.shape)
@@ -2000,7 +2072,7 @@ for outfilei in outfiles:
 
                 relax_speed = (ins.epsilon_psi/(eta_grid) * (curvature - mean_curvature)).flatten()
 
-                relax_max = np.sqrt(ux_grid**2 + uy_grid**2)
+                relax_max = np.sqrt(ux_grid**2 + uy_grid**2)/(2*md.variable('dt'))
                 relax_speed[relax_speed > relax_max] = relax_max[relax_speed > relax_max]
                 relax_speed[relax_speed < -relax_max] = -relax_max[relax_speed < -relax_max]
                 relax_speed = relax_speed.reshape(x_grid.shape)
@@ -2068,8 +2140,8 @@ for outfilei in outfiles:
 
                 if ins.influx & ins.fix_ls:
                     psi = md.variable('psi')
-                    psi[mfls.basic_dof_on_region(5)] = ls1_init[mfls.basic_dof_on_region(5)]
-                    psi[mfls.basic_dof_on_region(bounds.index(ins.fix_ls_bound))] = ls1_init[mfls.basic_dof_on_region(bounds.index(ins.fix_ls_bound))]
+                    psi[mfls.basic_dof_on_region(5)] = ls1_init.values(0)[mfls.basic_dof_on_region(5)]
+                    psi[mfls.basic_dof_on_region(bounds.index(ins.fix_ls_bound))] = ls1_init.values(0)[mfls.basic_dof_on_region(bounds.index(ins.fix_ls_bound))]
                     md.set_variable('psi',psi)
 
                 ls1.set_values(md.variable('psi'))
@@ -2122,9 +2194,19 @@ for outfilei in outfiles:
                                            md.variable('psi'))
                 mls.adapt()
                 mlsxfem.adapt()
-                #mfp.adapt()
+                mfp.adapt()
+                D_p = mfp.basic_dof_nodes()
+                ones_p = np.ones(D_p.shape[1])
+                x_p = D_p[0, :]
+                y_p = D_p[1, :]
                 #if ins.temperature:
                 #    mft.adapt()
+                mfmat.adapt()
+                D_mat = mfmat.basic_dof_nodes()
+                ones_mat = np.ones(D_mat.shape[1])
+                x_mat = D_mat[0, :]
+                y_mat = D_mat[1, :]
+
                 mim.adapt()
                 mim_surf.adapt()
                 mim_fluidbound.adapt()
@@ -2139,39 +2221,50 @@ for outfilei in outfiles:
                 if ins.temperature:
                 #    mft_cut.set_partial(eval(ind_t))
                     if ins.t_enrich & ins.free_surface:
+                        mft_cutoff_previous2.set_enriched_dofs(enriched_dofst_previous)
+                        mft_cutoff_previous.set_enriched_dofs(enriched_dofst)
+                        enriched_dofst_previous = enriched_dofst
                         enriched_dofs1 = (np.nonzero(
                             np.abs(compute_interpolate_on(mfls, ls1.values(0), DOFpts_t)) < (np.sqrt(dx ** 2 + dy ** 2)))[
                                               0] + 1)
-                        enriched_dofs3 = (np.nonzero(
+                        if ins.topography:
+                            enriched_dofs3 = (np.nonzero(
                             np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_t)) < (np.sqrt(dx ** 2 + dy ** 2)))[
                                               0] + 1)
-                        enriched_dofs = np.append(enriched_dofs1, enriched_dofs3)
-                        enriched_dofs = enriched_dofs[enriched_dofs > 1]
+                            enriched_dofst = np.append(enriched_dofs1, enriched_dofs3)
+                        else:
+                            enriched_dofst= enriched_dofs1
+                        enriched_dofst = enriched_dofst[enriched_dofst > 1]
     #
-                        mft_cutoff.set_enriched_dofs(enriched_dofs)
+                        mft_cutoff.set_enriched_dofst(enriched_dofst)
 
-
+                mfp_cutoff_previous2.set_enriched_dofs(enriched_dofsp_previous)
+                mfp_cutoff_previous.set_enriched_dofs(enriched_dofsp)
+                enriched_dofsp_previous = enriched_dofsp
                 enriched_dofs1 = (np.nonzero(
                     np.abs(compute_interpolate_on(mfls, ls1.values(0), DOFpts_p)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
                 if ins.topography:
                     enriched_dofs3 = (np.nonzero(
                         np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_p)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-                    enriched_dofs = np.append(enriched_dofs1, enriched_dofs3)
+                    enriched_dofsp = np.append(enriched_dofs1, enriched_dofs3)
                 else:
-                    enriched_dofs = enriched_dofs1
-                enriched_dofs = enriched_dofs[enriched_dofs > 1]
-                mfp_cutoff.set_enriched_dofs(enriched_dofs)
+                    enriched_dofsp = enriched_dofs1
+                enriched_dofsp = enriched_dofsp[enriched_dofsp > 1]
+                mfp_cutoff.set_enriched_dofs(enriched_dofsp)
 
+                mfmat_cutoff_previous2.set_enriched_dofs(enriched_dofsmat_previous)
+                mfmat_cutoff_previous.set_enriched_dofs(enriched_dofsmat)
+                enriched_dofsmat_previous = enriched_dofsmat
                 enriched_dofs1 = np.nonzero(
                     np.abs(compute_interpolate_on(mfls, ls1.values(0), DOFpts_mat)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1
                 if ins.topography:
                     enriched_dofs3 = np.nonzero(
                         np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_mat)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1
-                    enriched_dofs = np.append(enriched_dofs1, enriched_dofs3)
+                    enriched_dofsmat = np.append(enriched_dofs1, enriched_dofs3)
                 else:
-                    enriched_dofs = enriched_dofs1
-                enriched_dofs = enriched_dofs[enriched_dofs > 1]
-                mfmat_cutoff.set_enriched_dofs(enriched_dofs)
+                    enriched_dofsmat = enriched_dofs1
+                enriched_dofsmat = enriched_dofsmat[enriched_dofsmat > 1]
+                mfmat_cutoff.set_enriched_dofs(enriched_dofsmat)
 
                 if ins.temperature & ins.solidification:
                     Previous_Ls_u = compute_interpolate_on(mfls, md.variable('Previous_psi'), mfu.basic_dof_nodes())
