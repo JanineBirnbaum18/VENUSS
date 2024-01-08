@@ -148,7 +148,7 @@ dictionary = {
     "stab_psi": 'GLS', # level set stabilization (None, SUPG, GLS)
     "stab_d": 'SUPG', # displacement stabilization (None, SUPG)
     "stab_t": 'GLS', # temp stabilization (None, SUPG, GLS)
-    "epsilon_psi": 0.001, # coefficient for viscous relaxation of free surface where interface velocity F = (1 - visc_coeff*curvature)
+    "epsilon_psi": 0.01, # coefficient for viscous relaxation of free surface where interface velocity F = (1 - visc_coeff*curvature)
     "kappa_psi": 1e-6, # diffusion coefficient for curvature calculation
     "ndt0": 10, # number of substeps for BDF bootstrap
 
