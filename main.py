@@ -16,7 +16,7 @@ from curvature import *
 from math import erf
 from shapely.plotting import plot_polygon
 
-outfiles = ['relax_29x_01t_test']
+outfiles = ['cavity_30x']
 #for xi in ['30','60','120']:
 #    for dti in ['0.1','0.033','0.01','0.0033']:
 #        outfiles = np.append(outfiles,'surface_relaxation_' + xi + 'x_' + dti + 't')
@@ -404,8 +404,21 @@ for outfilei in outfiles:
     else:
         mfp = gf.MeshFem(mesh, 1)  # scalar field
         mfp.set_classical_fem(ins.p_k)  # continuous piecewise linear
+        mfp_init = gf.MeshFem(mesh, 1)
+        mfp_init.set_classical_fem(ins.p_k)
+        mfp_previous = gf.MeshFem(mesh, 1)
+        mfp_previous.set_classical_fem(ins.p_k)
+        mfp_previous2 = gf.MeshFem(mesh, 1)
+        mfp_previous2.set_classical_fem(ins.p_k)
+
         mfmat = gf.MeshFem(mesh, 1)  # scalar field
         mfmat.set_classical_fem(ins.mat_k)  # continuous piecewise linear
+        mfmat_init = gf.MeshFem(mesh, 1)  # scalar field
+        mfmat_init.set_classical_fem(ins.mat_k)  # continuous piecewise linear
+        mfmat_previous = gf.MeshFem(mesh, 1)  # scalar field
+        mfmat_previous.set_classical_fem(ins.mat_k)  # continuous piecewise linear
+        mfmat_previous2 = gf.MeshFem(mesh, 1)  # scalar field
+        mfmat_previous2.set_classical_fem(ins.mat_k)  # continuous piecewise linear
 
     # velocity
     mfu = gf.MeshFem(mesh, 2)  # vector field
