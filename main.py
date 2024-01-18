@@ -511,8 +511,8 @@ for outfilei in outfiles:
 
     D_curve = mfcurve.basic_dof_nodes()
     ones_curve = np.ones(D_curve.shape[1])
-    x_u = D_curve[0, :]
-    y_u = D_curve[1, :]
+    x_curve = D_curve[0, :]
+    y_curve = D_curve[1, :]
 
     D_p = mfp.basic_dof_nodes()
     ones_p = np.ones(D_p.shape[1])
