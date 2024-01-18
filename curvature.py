@@ -54,7 +54,7 @@ def compute_mean_curvature(Psi_grid,Ls3_grid,curvature,eta_grid,dx,dy):
                                             curvature,
                                             dx=[dy, dx])
     weights = np.zeros_like(Psi_grid)
-    weights[(np.abs(Psi_grid)<np.sqrt(dx**2 + dy**2))] = 1/eta_grid[(np.abs(Psi_grid)<np.sqrt(dx**2 + dy**2))]
+    weights[(np.abs(Psi_grid)<np.sqrt(dx**2 + dy**2))] = 1
     weights[(Ls3_grid)<np.sqrt(dx**2 + dy**2)] = 0
     mean_curvature = np.sum(np.sum(curvature_ext*weights))/np.sum(np.sum(weights))
     #for i in [0,-1]:

@@ -853,7 +853,7 @@ for outfilei in outfiles:
         md.add_initialized_data('psik',ins.kappa_psi)
 
         Psi_grid = sciinterp.griddata(D_ls.transpose(), ls1.values(0),
-                                           np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='linear').reshape(x_grid.shape)
+                                           np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), method='cubic').reshape(x_grid.shape)
 
         dx_Psi_grid,dy_Psi_grid,curvature,mag_grad_Psi_grid = compute_curvature(Psi_grid, dx/ins.u_k, dy/ins.u_k, symmetry=ins.symmetry)
         md.add_initialized_fem_data('curvature',mfcurve,
@@ -2077,7 +2077,7 @@ for outfilei in outfiles:
 
                 Psi_grid = sciinterp.griddata(D_ls.transpose(), md.variable('psis'),
                                               np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                                              method='linear').reshape(x_grid.shape)
+                                              method='cubic').reshape(x_grid.shape)
 
                 dx_Psi_grid, dy_Psi_grid, curvature, mag_grad_Psi_grid = compute_curvature(Psi_grid, dx/ins.u_k, dy/ins.u_k)
                 md.set_variable('curvature', sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
@@ -2093,7 +2093,8 @@ for outfilei in outfiles:
                 eta_grid = sciinterp.griddata(D_t.transpose(), eta,
                                               np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
                                               method='nearest').reshape(x_grid.shape)
-                mean_curvature = compute_mean_curvature(Psi_grid, Ls3_grid, curvature, eta_grid, dx/ins.u_k, dy/ins.u_k)
+                mean_eta_surf = np.mean(eta_grid[(np.abs(Psi_grid)<np.sqrt(dx**2 + dy**2))])
+                mean_curvature = np.mean(curvature[(np.abs(Psi_grid)<np.sqrt(dx**2 + dy**2))])
 
                 ux_grid = sciinterp.griddata(D_u[:,::2].transpose(), U[::2],
                                              np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
@@ -2103,15 +2104,16 @@ for outfilei in outfiles:
                                              method='nearest')
 
                 #F_grid = ux_grid * (dx_Psi_grid/mag_grad_Psi_grid).flatten() + uy_grid * (dy_Psi_grid/mag_grad_Psi_grid).flatten()
+                print(mean_curvature)
+                relax_speed = (ins.epsilon_psi*np.mean(np.sqrt(f_xi**2 + f_yi**2)+1)/mean_eta_surf * (curvature - mean_curvature)).flatten()
 
-                relax_speed = (ins.epsilon_psi/(eta_grid) * (curvature - mean_curvature)).flatten()
-
-                relax_max = np.sqrt(ux_grid**2 + uy_grid**2)/(2*md.variable('dt'))
-                relax_speed[relax_speed > relax_max] = relax_max[relax_speed > relax_max]
-                relax_speed[relax_speed < -relax_max] = -relax_max[relax_speed < -relax_max]
+                relax_max = np.sqrt((dx/ins.u_k)**2 + (dy/ins.u_k)**2)/(2*md.variable('dt'))
+                relax_speed[relax_speed > relax_max] = relax_max - (np.sqrt(ux_grid**2 + uy_grid**2)/(2*md.variable('dt')))[relax_speed > relax_max]
+                relax_speed[relax_speed < -relax_max] = -relax_max + (np.sqrt(ux_grid**2 + uy_grid**2)/(2*md.variable('dt')))[relax_speed < -relax_max]
                 relax_speed = relax_speed.reshape(x_grid.shape)
 
-                relax_speed[Ls3_grid<np.sqrt(dx**2+dy**2)/2] = 0
+                if ins.topography:
+                    relax_speed[Ls3_grid<np.sqrt(dx**2+dy**2)/2] = 0
 
                 mask_grid = (Psi_grid > 0)
                 d_ls1, Fx_ext_grid = skfmm.extension_velocities(sciinterp.griddata(D_ls.transpose(), md.variable('psi'),
@@ -2132,7 +2134,7 @@ for outfilei in outfiles:
                                            method='nearest').flatten()
                 Fy_ext = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
                                             Fy_ext_grid.flatten(),
-                                            D_u[:,::2].transpose(),
+                                            D_u[:,1::2].transpose(),
                                             method='nearest').flatten()
                 #dx_Psi = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), dx_Psi_grid.flatten(),
                 #                            D_ls.transpose(),
@@ -2167,6 +2169,13 @@ for outfilei in outfiles:
                                                    curvature.flatten(),
                                                    D_curve.transpose(),
                                                    method='nearest'))
+                            mfcurve.export_to_vtk(
+                                outfile + '/' + ins.outfile.split('/')[-1] + '_relax_' + numstr + '.vtk',
+                                sciinterp.griddata(
+                                    np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                                    relax_speed.flatten(),
+                                    D_curve.transpose(),
+                                    method='nearest'))
 
                 md.enable_variable('psi')
                 md.solve('max_res', ins.max_residual, 'max_iter', ins.max_iter, 'noisy')
