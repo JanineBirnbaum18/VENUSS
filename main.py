@@ -1581,14 +1581,15 @@ for outfilei in outfiles:
                 md.set_variable('dt', ins.dt / ins.ndt0)
 
         if np.abs(ti - ins.dt)<(ins.dt/100):
-            ls1_previous2.set_values(ls1_init.values(0))
-            ls1_previous.set_values(ls1.values(0))
-            mlsxfem_previous.adapt()
-            mlsxfem_previous2.adapt()
-            mfp_previous.adapt()
-            mfp_previous2.adapt()
-            mfmat_previous.adapt()
-            mfmat_previous2.adapt()
+            if ins.free_surface:
+                ls1_previous2.set_values(ls1_init.values(0))
+                ls1_previous.set_values(ls1.values(0))
+                mlsxfem_previous.adapt()
+                mlsxfem_previous2.adapt()
+                mfp_previous.adapt()
+                mfp_previous2.adapt()
+                mfmat_previous.adapt()
+                mfmat_previous2.adapt()
 
             md.set_variable('Previous2_u', u_init)
             md.set_variable('Previous_u', md.variable('u'))
@@ -1606,8 +1607,8 @@ for outfilei in outfiles:
             if ins.free_surface:
                 md.set_variable('Previous2_psi', psi_init)
                 md.set_variable('Previous_psi', ls1.values(0))
+                mfmat_previous2.adapt()
 
-            mfmat_previous2.adapt()
             md.set_variable('Previous2_rho', rho_init)
             if ins.ndt0>1:
                 md.set_variable('dt', [ins.dt])
@@ -1641,7 +1642,8 @@ for outfilei in outfiles:
             mfmat_previous2.adapt()
             md.set_variable('Previous2_rho', md.variable('Previous_rho'))
 
-        mfmat_previous.adapt()
+        if ins.free_surface:
+            mfmat_previous.adapt()
         md.set_variable('Previous_rho',md.variable('rho'))
         md.set_variable('Previous_beta', md.variable('beta'))
         if ins.temperature:
