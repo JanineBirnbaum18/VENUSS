@@ -16,7 +16,8 @@ from curvature import *
 from math import erf
 from shapely.plotting import plot_polygon
 
-outfiles = ["relax_59x_01t_unsteady"]
+outfiles = [outfile for outfile in sys.argv[1:]]
+print(outfiles)
 
 for outfilei in outfiles:
     print(outfilei)
