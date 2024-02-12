@@ -14,7 +14,7 @@ def compute_curvature(Psi_grid, dx, dy,symmetry='planar'):
     dy_Psi_grid[-1, :] = (Psi_grid[-1, :] - Psi_grid[-2, :]) / dy
 
     mag_grad_Psi_grid = np.sqrt(dx_Psi_grid ** 2 + dy_Psi_grid ** 2)
-    mag_grad_Psi_grid[mag_grad_Psi_grid < 1e-14] = 1e-14
+    mag_grad_Psi_grid[mag_grad_Psi_grid < 1e-10] = 1e-10
 
     dxx_Psi_grid = np.zeros_like(Psi_grid)
     dxx_Psi_grid[:, 1:-1] = (Psi_grid[:, 2:] - 2 * Psi_grid[:, 1:-1] + Psi_grid[:, :-2]) / (dx ** 2)
