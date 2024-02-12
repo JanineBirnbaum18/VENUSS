@@ -1,0 +1,12 @@
+numpy
+scipy
+Sphinx
+pyvista
+matplotlib
+jsons
+h5py
+scikit-image
+scikit-fmm
+alphashape
+shapely
+vtk
