@@ -16,6 +16,8 @@ from curvature import *
 from math import erf
 from shapely.plotting import plot_polygon
 
+##new vtk
+
 outfiles = [outfile for outfile in sys.argv[1:]]
 print(outfiles)
 
@@ -1561,6 +1563,8 @@ for outfilei in outfiles:
                     mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_solid_' + numstr + '.vtk', solid)
                     mft0.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls2_' + numstr + '.vtk',
                                       (t_init - Tg) / Tg)
+            if ins.topography:
+                mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls3_' + numstr + '.vtk',ls3.values(0))
 
 
         if ins.free_surface:
@@ -2137,6 +2141,9 @@ for outfilei in outfiles:
                             mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_solid_' + numstr + '.vtk',solid)
                             mft0.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls2_' + numstr + '.vtk',
                                               (T - Tg) / Tg)
+                    if ins.topography:
+                        mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls3_' + numstr + '.vtk',
+                                           ls3.values(0))
 
                 hf = h5py.File(ins.outfile + '/' + ins.outfile.split('/')[-1] + '.h5', 'a')
                 hf['last_u'][:] = U
