@@ -1514,8 +1514,8 @@ for outfilei in outfiles:
             if ins.free_surface:
                 mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + numstr + '.vtk',
                                    ls1.values(0))
-                mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1post_' + numstr + '.vtk',
-                                   ls1.values(0))
+                #mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1post_' + numstr + '.vtk',
+                #                   ls1.values(0))
                 if ins.true_ls1:
                     mfls.export_to_vtk(
                         outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1true_' + numstr + '.vtk',
@@ -2250,46 +2250,46 @@ for outfilei in outfiles:
                     fext_init = fext.copy()
                     md.set_variable('Previous_fext',fext)
 
-                if (((int(ti/ins.dt) % ins.noutput == 0) & (ti>=ins.dt)) or (np.abs(ti - ins.tf) < ins.dt)) & (j == (ins.n_outer_iter-1)):
-                    numstr = str(ti * 10 ** ndecimal).split('.')[0].zfill(ndigits)
+                #if (((int(ti/ins.dt) % ins.noutput == 0) & (ti>=ins.dt)) or (np.abs(ti - ins.tf) < ins.dt)) & (j == (ins.n_outer_iter-1)):
+                    #numstr = str(ti * 10 ** ndecimal).split('.')[0].zfill(ndigits)
                     # print('Average temperature %g' % np.mean(T))
-                    if ins.vtk:
-                        if ins.free_surface:
-                            mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Fext_' + numstr + '.vtk', fext)
-                            mfcurve.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_psigrid_' + numstr + '.vtk',
-                                               sciinterp.griddata(
-                                                   np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                                                   Psi_grid.flatten(),
-                                                   D_curve.transpose(),
-                                                   method='nearest'))
-                            mfcurve.export_to_vtk(
-                                outfile + '/' + ins.outfile.split('/')[-1] + '_dxpsigrid_' + numstr + '.vtk',
-                                sciinterp.griddata(
-                                    np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                                    dx_Psi_grid.flatten(),
-                                    D_curve.transpose(),
-                                    method='nearest'))
-                            mfcurve.export_to_vtk(
-                                outfile + '/' + ins.outfile.split('/')[-1] + '_dypsigrid_' + numstr + '.vtk',
-                                sciinterp.griddata(
-                                    np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                                    dy_Psi_grid.flatten(),
-                                    D_curve.transpose(),
-                                    method='nearest'))
-                            mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_psis_' + numstr + '.vtk', md.variable('psis'))
-                            mfcurve.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_curvature_' + numstr + '.vtk',
-                                               sciinterp.griddata(
-                                                   np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                                                   curvature.flatten(),
-                                                   D_curve.transpose(),
-                                                   method='nearest'))
-                            mfcurve.export_to_vtk(
-                                outfile + '/' + ins.outfile.split('/')[-1] + '_relax_' + numstr + '.vtk',
-                                sciinterp.griddata(
-                                    np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                                    relax_speed.flatten(),
-                                    D_curve.transpose(),
-                                    method='nearest'))
+                    #if ins.vtk:
+                        #if ins.free_surface:
+                            #mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Fext_' + numstr + '.vtk', fext)
+                            #mfcurve.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_psigrid_' + numstr + '.vtk',
+                            #                   sciinterp.griddata(
+                            #                       np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                            #                       Psi_grid.flatten(),
+                            #                       D_curve.transpose(),
+                            #                       method='nearest'))
+                            #mfcurve.export_to_vtk(
+                            #    outfile + '/' + ins.outfile.split('/')[-1] + '_dxpsigrid_' + numstr + '.vtk',
+                            #    sciinterp.griddata(
+                            #        np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                            #        dx_Psi_grid.flatten(),
+                            #        D_curve.transpose(),
+                            #        method='nearest'))
+                            #mfcurve.export_to_vtk(
+                            #    outfile + '/' + ins.outfile.split('/')[-1] + '_dypsigrid_' + numstr + '.vtk',
+                            #    sciinterp.griddata(
+                            #        np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                            #        dy_Psi_grid.flatten(),
+                            #        D_curve.transpose(),
+                            #        method='nearest'))
+                            #mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_psis_' + numstr + '.vtk', md.variable('psis'))
+                            #mfcurve.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_curvature_' + numstr + '.vtk',
+                            #                   sciinterp.griddata(
+                            #                       np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                            #                       curvature.flatten(),
+                            #                       D_curve.transpose(),
+                            #                       method='nearest'))
+                            #mfcurve.export_to_vtk(
+                            #    outfile + '/' + ins.outfile.split('/')[-1] + '_relax_' + numstr + '.vtk',
+                            #    sciinterp.griddata(
+                            #        np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                            #        relax_speed.flatten(),
+                            #        D_curve.transpose(),
+                            #        method='nearest'))
 
                 md.enable_variable('psi')
                 md.solve('max_res', ins.max_residual, 'max_iter', ins.max_iter, 'noisy')
@@ -2343,12 +2343,12 @@ for outfilei in outfiles:
                     area = alphashape.alphashape(pts.transpose(), 2 * np.sqrt(dx ** 2 + dy ** 2)).area
                     print((area - expected_area) / expected_area)
 
-                if (((round(ti / ins.dt) % ins.noutput == 0) & (ti >= ins.dt)) or (np.abs(ti - ins.tf) < ins.dt)) & (j == (ins.n_outer_iter-1)):
-                    numstr = str(round(ti * 10 ** ndecimal)).split('.')[0].zfill(ndigits)
+                #if (((round(ti / ins.dt) % ins.noutput == 0) & (ti >= ins.dt)) or (np.abs(ti - ins.tf) < ins.dt)) & (j == (ins.n_outer_iter-1)):
+                    #numstr = str(round(ti * 10 ** ndecimal)).split('.')[0].zfill(ndigits)
                     # print('Average temperature %g' % np.mean(T))
-                    if ins.vtk:
-                        mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1post_' + numstr + '.vtk',
-                                           md.variable('psi'))
+                    #if ins.vtk:
+                        #mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1post_' + numstr + '.vtk',
+                        #                   md.variable('psi'))
                 mls.adapt()
                 mlsxfem.adapt()
                 mfp.adapt()
@@ -2451,18 +2451,17 @@ for outfilei in outfiles:
     #    if ins.temperature:
     #        mft_cut.set_partial(eval(ind_t))
 
-    # Reshape for output
-    # Velocity
-    U = md.variable('u')
-    P = md.variable('p')
-    if ins.temperature:
-        T = md.variable('t')
-    else:
-        T = None
-    # %% md
     # Visualize results
     # %%
     if ins.plots:
+
+        U = md.variable('u')
+        P = md.variable('p')
+        if ins.temperature:
+            T = md.variable('t')
+        else:
+            T = None
+
         fig2, ax = plt.subplots(figsize=(16, 16), ncols=2, nrows=2)
 
         c1 = ax[0, 0].tripcolor(x_u[eval(ind_u)][::2], y_u[eval(ind_u)][::2], U[::2],
