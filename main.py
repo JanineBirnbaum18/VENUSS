@@ -44,13 +44,13 @@ for outfilei in outfiles:
 
     if type(ins.ndigits) == int:
         ndigits = ins.ndigits
-        ndecimal = len(str(ins.dt)[:ndigits+2].split('.')[-1].rstrip('0'))
+        ndecimal = len(str(ins.dt)[:ndigits+1].split('.')[-1].rstrip('0'))
     else:
         ndigits = int(np.floor(np.log10(ins.tf/ins.dt))) + len(str(ins.dt).split('.')[-1].lstrip('0')
                                                            ) + len(str(ins.dt).split('.')[0].rstrip('0'))
-        if '.' in str(ins.dt)[:ndigits+2]:
+        if '.' in str(ins.dt)[:ndigits+1]:
             ndigits += 1
-            ndecimal = len(str(ins.dt)[:ndigits+2].split('.')[-1].rstrip('0'))
+            ndecimal = len(str(ins.dt)[:ndigits+1].split('.')[-1].rstrip('0'))
         else:
             ndecimal = 0
 
@@ -794,7 +794,7 @@ for outfilei in outfiles:
 
         eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0)).replace('vft','ins.vft').replace('etar','ins.etar')) * ones_mu
         eta[eta > ins.max_eta] = ins.max_eta
-        eta[ins.T0 * ones_mu <= ins.vftb / (np.log10(ins.max_eta) - ins.vfta) - 273 + ins.vftc] = ins.max_eta
+        eta[ins.T0 * ones_mu <= (ins.vftb / (np.log10(ins.max_eta/ins.etar) - ins.vfta) - 273 + ins.vftc)] = ins.max_eta
 
         if ins.free_surface:
             eta[ls1_mu > 0] = ins.eta2
@@ -2066,7 +2066,7 @@ for outfilei in outfiles:
                     D[(Ls3_u < 0)] = 0
 
             if (((int(ti/ins.dt) % ins.noutput == 0) & (ti>=ins.dt)) or (np.abs(ti - ins.tf) < ins.dt)) & (j == (ins.n_outer_iter-1)):
-                numstr = str(round(ti * 10 ** (ndecimal-1))).split('.')[0].zfill(ndigits)
+                numstr = str(round(ti * 10 ** (ndecimal))).split('.')[0].zfill(ndigits)
                 # print('Average temperature %g' % np.mean(T))
                 if ins.vtk:
                     mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + numstr + '.vtk', U)
