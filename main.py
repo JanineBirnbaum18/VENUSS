@@ -16,8 +16,6 @@ from curvature import *
 from math import erf
 from shapely.plotting import plot_polygon
 
-##new vtk
-
 outfiles = [outfile for outfile in sys.argv[1:]]
 print(outfiles)
 
@@ -658,7 +656,6 @@ for outfilei in outfiles:
             md.add_initialized_fem_data('Previous2_psi', mfls, last_Ls1)
 
         if ins.temperature & ins.solidification:
-            #T_ls = compute_interpolate_on(mft, Previous_t, mfls)
             ls2.set_values((T-Tg)/Tg)
 
 
@@ -773,7 +770,7 @@ for outfilei in outfiles:
         T_mu = compute_interpolate_on(mft, T, mfmu.basic_dof_nodes())
         eta = eval(ins.eta_exp.replace('vfta', str(ins.vfta)).replace('vftb', str(ins.vftb)).replace(
             'vftc', str(ins.vftc)).replace('etar', str(ins.etar)).replace('T','T_mu').replace('exp', 'np.exp'))
-        eta[T_mu <= ins.vftb/(np.log(ins.max_eta)-ins.vfta) - 273 + ins.vftc] = ins.max_eta
+        eta[T_mu <= ins.vftb/(np.log10(ins.max_eta)-ins.vfta) - 273 + ins.vftc] = ins.max_eta
 
         if ins.free_surface:
             ls1_mu = compute_interpolate_on(mfls, ls1.values(0), mfmu.basic_dof_nodes())
@@ -796,6 +793,9 @@ for outfilei in outfiles:
             ls3_mu= compute_interpolate_on(mfls, ls3.values(0), mfmu.basic_dof_nodes())
 
         eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0)).replace('vft','ins.vft').replace('etar','ins.etar')) * ones_mu
+        eta[eta > ins.max_eta] = ins.max_eta
+        eta[ins.T0 * ones_mu <= ins.vftb / (np.log10(ins.max_eta) - ins.vfta) - 273 + ins.vftc] = ins.max_eta
+
         if ins.free_surface:
             eta[ls1_mu > 0] = ins.eta2
         if ins.topography:
@@ -803,11 +803,11 @@ for outfilei in outfiles:
 
     # time dependence
     md.add_initialized_data('dt', [ins.dt/ins.ndt0])
-    md.add_initialized_data('BDF0', [1])
-    md.add_initialized_data('BDF1', [-1])
-    md.add_initialized_data('BDF2', [0])
-    md.add_initialized_data('BDFf', [1])
-    md.add_initialized_data('BDFf_t', [1])
+    md.add_initialized_data('BDF0', [1]) #1
+    md.add_initialized_data('BDF1', [-1]) #-1
+    md.add_initialized_data('BDF2', [0]) #0
+    md.add_initialized_data('BDFf', [0]) #1
+    md.add_initialized_data('BDFf_t', [0])#1
 
     md_init.add_initialized_data('dt', [ins.dt/ins.ndt0])
 
@@ -823,21 +823,22 @@ for outfilei in outfiles:
         ls2_mat = compute_interpolate_on(mft0,ls2.values(0),mfmat.basic_dof_nodes())
         ls2_mu = compute_interpolate_on(mft0, ls2.values(0), mfmu.basic_dof_nodes())
         if ins.free_surface:
-            lam[(ls1_mu <= 0) & (ls2_mu < 0)] = lam_solid
-            mu[(ls1_mu <= 0) & (ls2_mu < 0)] = mu_solid
-            solid[(ls1_mat <= 0) & (ls2_mat < 0)] = 1
-            beta[(ls1_mat <= 0) & (ls2_mat < 0)] = 3 * (1 - 2 * ins.nu) / ins.E  # 1/bulk modulus
+            lam[(ls1_mu <= 0) & (ls2_mu <= 0)] = lam_solid
+            mu[(ls1_mu <= 0) & (ls2_mu <= 0)] = mu_solid
+            solid[(ls1_mat <= 0) & (ls2_mat <= 0)] = 1
+            beta[(ls1_mat <= 0) & (ls2_mat <= 0)] = 3 * (1 - 2 * ins.nu) / ins.E  # 1/bulk modulus
 
         else:
-            lam[(ls2_mu < 0)] = lam_solid
-            mu[(ls2_mu < 0)] = mu_solid
-            solid[(ls2_mat < 0)] = 1
-            beta[(ls2_mat < 0)] = 3 * (1 - 2 * ins.nu) / ins.E  # 1/bulk modulus
+            lam[(ls2_mu <= 0)] = lam_solid
+            mu[(ls2_mu <= 0)] = mu_solid
+            solid[(ls2_mat <= 0)] = 1
+            beta[(ls2_mat <= 0)] = 3 * (1 - 2 * ins.nu) / ins.E  # 1/bulk modulus
 
-        solid = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+        if ins.free_surface:
+            solid = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
                                    remove_small_objects(sciinterp.griddata(D_mat.transpose(), solid,
                                                         np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                                                        method='nearest').reshape(x_grid.shape).astype(int),min_size=25).flatten(),
+                                                        method='nearest').reshape(x_grid.shape).astype(int),min_size=9).flatten(),
                                    D_mat.transpose(),method='nearest')
         md.set_variable('beta',beta)
         md.set_variable('Previous_beta',beta)
@@ -932,7 +933,7 @@ for outfilei in outfiles:
         md_init.add_nonlinear_term(mim_all,'[u(1)/X(1)/X(1),0]:Test_u')
 
     if ins.free_surface & ins.solve_air:
-       md_init.add_nonlinear_term(mim_fluidbound, "1e6*((Xfem_plus(p)-Xfem_minus(p))+surface_tension*curvature).(Xfem_plus(Test_p)-Xfem_minus(Test_p))")
+       md_init.add_nonlinear_term(mim_fluidbound, str(ins.max_eta*1e6) + "*((Xfem_plus(p)-Xfem_minus(p))+surface_tension*curvature).(Xfem_plus(Test_p)-Xfem_minus(Test_p))")
 
     md.add_macro('h', 'element_size')
 
@@ -942,7 +943,7 @@ for outfilei in outfiles:
     md.add_macro('Previous_rhof', 'Previous_rho*(1 + beta*(Previous_p-pamb))')
     md.add_macro('Previous2_rhof', 'Previous2_rho*(1 + beta*(Previous2_p-pamb))')
 
-    time_int_p = '(BDF0*p+BDF1*Previous_p+BDF2*Previous2_p)/dt*(1+BDFf)'
+    time_int_p = '(BDF0*p+BDF1*Previous_p+BDF2*Previous2_p)/dt'
 
     if ins.compressible or (ins.temperature & ins.solidification):
         if 'planar' in ins.symmetry:
@@ -958,7 +959,7 @@ for outfilei in outfiles:
                 S_SUPG_p = "(" +  time_int_p + "*(u.Grad_Test_p)" + " + 1/(rho*beta)*rhof*Div_u*(u.Grad_Test_p) + u.Grad_p*(u.Grad_Test_p))"
                 S_SUPG_p_init = "(" + time_int_p + "*(Previous_u.Grad_Test_p)" + " + 1/(Previous_rho*Previous_beta)*(Previous_rhof*Div_Previous_u)*(Previous_u.Grad_Test_p) + Previous_u.Grad_p*(Previous_u.Grad_Test_p))"
                 tau_SUPG_p = '1/(2/dt + 2*Norm(u)/h)'
-                tau_SUPG_p_init = 'BDFf*(1/(2/dt + 2*Norm(Previous_u)/h))'
+                tau_SUPG_p_init = 'BDFf*(1/(2/dt+ 2*Norm(Previous_u)/h))'
             elif 'axial' in ins.symmetry:
                 S_SUPG_p = "(" + time_int_p + "*(u.Grad(X(1)*Test_p))" + " + X(1)/(rho*beta)*rhof*Div_u*(u.Grad(X(1)*Test_p)) + u.Grad(X(1)*p)*(u.Grad(X(1)*Test_p)))"
                 S_SUPG_p_init = "(" + time_int_p + "*(Previous_u.Grad(X(1)*Test_p))" + " + X(1)/(Previous_rho*Previous_beta)*Previous_rhof*Div_Previous_u*(Previous_u.Grad(X(1)*Test_p)) + Previous_u.Grad(X(1)*p)*(Previous_u.Grad(X(1)*Test_p)))"
@@ -986,16 +987,15 @@ for outfilei in outfiles:
                                       'BDFf*(X(1)/(rho*beta)*Previous_rhof*Div_Previous_u*Test_p + Previous_u.Grad(X(1)*Previous_p)*Test_p)')
 
     if ins.free_surface & ins.solve_air:
-        md.add_nonlinear_term(mim_fluidbound, "1e6*((Xfem_plus(p)-Xfem_minus(p))+surface_tension*curvature).(Xfem_plus(Test_p)-Xfem_minus(Test_p))")
-        if ins.temperature:
-            md.add_nonlinear_term(mim_fluidbound, "1e8*((Xfem_plus(t)-Xfem_minus(t))-(1150-tamb)/2).(Xfem_plus(Test_t)-Xfem_minus(Test_t))")
+        md.add_nonlinear_term(mim_fluidbound, str(ins.max_eta*1e6) + "*((Xfem_plus(p)-Xfem_minus(p))+surface_tension*curvature).(Xfem_plus(Test_p)-Xfem_minus(Test_p))")
+        if ins.temperature & ins.t_enrich:
+            md.add_nonlinear_term(mim_fluidbound, str(ins.max_eta*1e6) + "*((Xfem_plus(t)-Xfem_minus(t))-(1150-tamb)/2).(Xfem_plus(Test_t)-Xfem_minus(Test_t))")
 
     # mometum balance
     if ins.compressible:
-        time_int_u = "rhof*(BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u*(1+BDFf)"
+        time_int_u = "rhof*(BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u"
     else:
-        time_int_u = "rho*(BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u*(1+BDFf)"
-
+        time_int_u = "rho*(BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u"
 
     if 'planar' in ins.symmetry:
         if ins.steady:
@@ -1003,31 +1003,36 @@ for outfilei in outfiles:
             md.add_isotropic_linearized_elasticity_brick(mim, 'u', 'lambda*(dt*solid + (1-solid))',
                                                               'mu*(dt*solid + (1-solid))')
             md.set_variable('BDFf', [0])
-            linear_elastic = ""
-            linear_elastic_init = ""
+            linear_elastic = "0"
+            linear_elastic_init = "0"
         else:
-            md.add_nonlinear_term(mim, time_int_u + '*(1+BDFf)')
+            md.add_nonlinear_term(mim, time_int_u)
             md.add_nonlinear_term(mim, "Grad_p.Test_u + BDFf*Grad_Previous_p.Test_u")
             linear_elastic = "(lambda*(Div_u*Div_Test_u) + mu*((Grad_u + Grad_u'):Grad_Test_u))"
             linear_elastic_init = "BDFf*(Previous_lambda*(Div_Previous_u*Div_Test_u) + Previous_mu*((Grad_Previous_u + Grad_Previous_u'):Grad_Test_u))"
     elif 'axial' in ins.symmetry:
         if ins.steady:
             md.add_nonlinear_term(mim, 'solid*X(1)*' + time_int_u)
+            md.set_variable('BDFf', [0])
             md.add_nonlinear_term(mim, 'u.([1,0]*p)*Test_p')
             md.add_isotropic_linearized_elasticity_brick(mim_all, 'u', 'lambda*(dt*solid + (1-solid))',
                                                               'mu*(dt*solid + (1-solid))')
             md.add_nonlinear_term(mim_all, '(1/X(1)*lambda*[u(1),0;u(1),0]):Grad_Test_u')
             md.add_nonlinear_term(mim_all, '[u(1)/X(1)/X(1),0]:Test_u')
+
+            md.set_variable('BDFf', [0])
+            linear_elastic = "0"
+            linear_elastic_init = "0"
         else:
-            md.add_nonlinear_term(mim, 'X(1)*' + time_int_u + '*(1+BDFf)')
+            md.add_nonlinear_term(mim, 'X(1)*' + time_int_u)
             md.add_nonlinear_term(mim, "X(1)*Grad_p.Test_u + X(1)*BDFf*Grad_Previous_p.Test_u")
 
             linear_elastic = "(lambda*(Trace(Grad(X(1)*u)))*Div_Test_u + mu*((X(1)*Grad_u + X(1)*Grad_u'):Grad_Test_u + [u(1)/X(1),0]:Test_u))"
             linear_elastic_init = "BDFf*(Previous_lambda*(Trace(Grad(X(1)*Previous_u))*Div_Test_u) + Previous_mu*((X(1)*Grad_Previous_u + (X(1)*Grad_Previous_u)'):Grad_Test_u + [Previous_u(1)/X(1),0]:Test_u))"
 
     if ins.temperature & ins.solidification:
-        md.add_nonlinear_term(mim, linear_elastic + '*(dt/BDF0*solid*(1+BDFf) + (1-solid))')
-        md.add_nonlinear_term(mim, linear_elastic_init + '*(dt/BDF0*Previous_solid*(1+BDFf) + (1-Previous_solid))')
+        md.add_nonlinear_term(mim, linear_elastic + '*(dt/BDF0*solid + (1-solid))')
+        md.add_nonlinear_term(mim, linear_elastic_init + '*(dt/BDF0*Previous_solid + (1-Previous_solid))')
 
         if 'planar' in ins.symmetry:
             linear_elastic_adv = "-(lambda*(Trace(Grad(u.Grad_Previous_d))*Div_Test_u) + mu*((Grad(u.Grad_Previous_d) + Grad(u.Grad_Previous_d)'):Grad_Test_u))*(dt/BDF0*Previous_solid)"
@@ -1050,11 +1055,11 @@ for outfilei in outfiles:
         md.add_nonlinear_term(mim_all, "psis*Test_psis - psi*Test_psis + psik*Grad_psis.Grad_Test_psis")
 
         if 'planar' in ins.symmetry:
-            time_int_psi = "((BDF0*psi+BDF1*Previous_psi+BDF2*Previous2_psi)/dt*(1+BDFf_t))"
+            time_int_psi = "((BDF0*psi+BDF1*Previous_psi+BDF2*Previous2_psi)/dt)"
             advection_psi = "(fext.Grad_psi)*Test_psi"
             advection_psi_init = "BDFf_t*(Previous_fext.Grad_Previous_psi)*Test_psi"
         elif 'axial' in ins.symmetry:
-            time_int_psi = "(X(1)*(BDF0*psi+BDF1*Previous_psi+BDF2*Previous2_psi)/dt*(1+BDFf_t))"
+            time_int_psi = "(X(1)*(BDF0*psi+BDF1*Previous_psi+BDF2*Previous2_psi)/dt)"
             advection_psi = "(fext.Grad(X(1)*psi))*Test_psi"
             advection_psi_init = "BDFf_t*(Previous_fext.Grad(X(1)*Previous_psi))*Test_psi"
 
@@ -1064,44 +1069,44 @@ for outfilei in outfiles:
 
         if 'SUPG' in ins.stab_psi:
             if 'planar' in ins.symmetry:
-                tau_SUPG_psi = "1/(2/dt*(1+BDFf_t) + 2*Norm(fext)/h)"
+                tau_SUPG_psi = "1/(2/dt + 2*Norm(fext)/h)"
                 S_SUPG_psi = "(fext.Grad_psi).(fext.Grad_Test_psi)"
                 md.add_nonlinear_term(mim, tau_SUPG_psi + '*' + time_int_psi + '.(fext.Grad_Test_psi)')
                 md.add_nonlinear_term(mim, tau_SUPG_psi + '*' + S_SUPG_psi)
 
-                tau_SUPG_psi_init = "BDFf_t/(2/dt*(1+BDFf_t) + 2*Norm(Previous_fext)/h)"
+                tau_SUPG_psi_init = "BDFf_t/(2/dt + 2*Norm(Previous_fext)/h)"
                 S_SUPG_psi_init = "(Previous_fext.Grad_Previous_psi).(Previous_fext.Grad_Test_psi)"
                 md.add_nonlinear_term(mim, tau_SUPG_psi_init + '*' + time_int_psi + '.(Previous_fext.Grad_Test_psi)')
                 md.add_nonlinear_term(mim, tau_SUPG_psi_init + '*' + S_SUPG_psi_init)
             elif 'axial' in ins.symmetry:
-                tau_SUPG_psi = "1/(2/dt*(1+BDFf_t) + 2*Norm(X(1)*fext)/h)"
+                tau_SUPG_psi = "1/(2/dt + 2*Norm(X(1)*fext)/h)"
                 S_SUPG_psi = "(fext.Grad(X(1)*psi)).(fext.Grad(X(1)*Test_psi))"
                 md.add_nonlinear_term(mim, tau_SUPG_psi + '*' + time_int_psi + '.(fext.Grad(X(1)*Test_psi))')
                 md.add_nonlinear_term(mim, tau_SUPG_psi + '*' + S_SUPG_psi)
 
-                tau_SUPG_psi_init = "BDFf_t/(2/dt*(1+BDFf_t) + 2*Norm(X(1)*Previous_fext)/h)"
+                tau_SUPG_psi_init = "BDFf_t/(2/dt + 2*Norm(X(1)*Previous_fext)/h)"
                 S_SUPG_psi_init = "(Previous_fext.Grad(X(1)*Previous_psi)).(Previous_fext.Grad(X(1)*Test_psi))"
                 md.add_nonlinear_term(mim, tau_SUPG_psi_init + '*' + time_int_psi + '.(Previous_fext.Grad(X(1)*Test_psi))')
                 md.add_nonlinear_term(mim, tau_SUPG_psi_init + '*' + S_SUPG_psi_init)
 
         elif 'GLS' in ins.stab_psi:
             if 'planar' in ins.symmetry:
-                tau_GLS_psi = "1/(2/dt*(1+BDFf_t) + 2*Norm(fext)/h)"
+                tau_GLS_psi = "1/(2/dt + 2*Norm(fext)/h)"
                 S_GLS_psi = "((fext.Grad_psi)*(Trace(Grad(fext*Test_psi))))"
                 md.add_nonlinear_term(mim, tau_GLS_psi + '*' + time_int_psi + '.(Trace(Grad(fext*Test_psi)))')
                 md.add_nonlinear_term(mim, tau_GLS_psi + '*' + S_GLS_psi)
 
-                tau_GLS_psi_init = "BDFf_t/(2/dt*(1+BDFf_t) + 2*Norm(Previous_fext)/h)"
+                tau_GLS_psi_init = "BDFf_t/(2/dt+ 2*Norm(Previous_fext)/h)"
                 S_GLS_psi_init = "((Previous_fext.Grad_Previous_psi)*(Trace(Grad(Previous_fext*Test_psi))))"
                 md.add_nonlinear_term(mim, tau_GLS_psi_init + '*' + time_int_psi + '.(Trace(Grad(Previous_fext*Test_psi)))')
                 md.add_nonlinear_term(mim, tau_GLS_psi_init + '*' + S_GLS_psi_init)
             elif 'axial' in ins.symmetry:
-                tau_GLS_psi = "1/(2/dt*(1+BDFf_t) + 2*Norm(X(1)*fext)/h)"
+                tau_GLS_psi = "1/(2/dt + 2*Norm(X(1)*fext)/h)"
                 S_GLS_psi = "((fext.Grad(X(1)*psi))*(Trace(Grad(X(1)*fext*Test_psi))))"
                 md.add_nonlinear_term(mim, tau_GLS_psi + '*' + time_int_psi + '.(Trace(Grad(X(1)*fext*Test_psi)))')
                 md.add_nonlinear_term(mim, tau_GLS_psi + '*' + S_GLS_psi)
 
-                tau_GLS_psi_init = "BDFf_t/(2/dt*(1+BDFf_t) + 2*Norm(X(1)*Previous_fext)/h)"
+                tau_GLS_psi_init = "BDFf_t/(2/dt + 2*Norm(X(1)*Previous_fext)/h)"
                 S_GLS_psi_init = "((Previous_fext.Grad(X(1)*Previous_psi))*(Trace(Grad(X(1)*Previous_fext*Test_psi))))"
                 md.add_nonlinear_term(mim,
                                       tau_GLS_psi_init + '*' + time_int_psi + '.(Trace(Grad(X(1)*Previous_fext*Test_psi)))')
@@ -1111,7 +1116,7 @@ for outfilei in outfiles:
         md.disable_variable('psi')
 
     if ins.temperature:
-        time_int_t = "(BDF0*t+BDF1*Previous_t+BDF2*Previous2_t)/dt*(1+BDFf_t)"
+        time_int_t = "(BDF0*t+BDF1*Previous_t+BDF2*Previous2_t)/dt"
         if 'planar' in ins.symmetry:
             advection_t = "(u.Grad_t)*Test_t"
             advection_t_init = "BDFf_t*(Previous_u.Grad_Previous_t)*Test_t"
@@ -1142,50 +1147,50 @@ for outfilei in outfiles:
 
         if 'SUPG' in ins.stab_t:
             if 'planar' in ins.symmetry:
-                S_SUPG_t = "((u.Grad_t)*(u.Grad_Test_t) + kappa*(Grad_t).Grad(u.Grad_Test_t) +" + time_int_t + "*(u.Grad_Test_t)*(1+BDFf_t))"
-                S_SUPG_t_init = "(((Previous_u.Grad_Previous_t)*(Previous_u.Grad_Test_t) + Previous_kappa*(Grad_Previous_t).Grad((X(1)*Previous_u).Grad_Test_t))+" + time_int_t + "*(Previous_u.Grad_Test_t)*(1+BDFf_t)))"
+                S_SUPG_t = "((u.Grad_t)*(u.Grad_Test_t) + kappa*(Grad_t).Grad(u.Grad_Test_t) +" + time_int_t + "*(u.Grad_Test_t))"
+                S_SUPG_t_init = "(((Previous_u.Grad_Previous_t)*(Previous_u.Grad_Test_t) + Previous_kappa*(Grad_Previous_t).Grad((X(1)*Previous_u).Grad_Test_t))+" + time_int_t + "*(Previous_u.Grad_Test_t)))"
                 tau_SUPG_t = '1/(2/dt*(1+BDFf_t) + 4*kappa/(h*h) + 2*Norm(u)/h)*xi'
-                tau_SUPG_t_init = 'BDFf_t/(2/dt*(1+BDFf_t) + 4*Previous_kappa/(h*h) + 2*Norm(Previous_u)/h)*xi_init'
+                tau_SUPG_t_init = 'BDFf_t/(2/dt + 4*Previous_kappa/(h*h) + 2*Norm(Previous_u)/h)*xi_init'
             elif 'axial' in ins.symmetry:
-                S_SUPG_t = "(u.Grad(X(1)*t)*(u.Grad(X(1)*Test_t)) + kappa*((X(1)*Grad_t).Grad(u.Grad(X(1)*Test_t))) + " + time_int_t + "*u.Grad(X(1)*Test_t)*(1+BDFf_t))"
-                S_SUPG_t_init = "((Previous_u.Grad(X(1)*Previous_t))*(Previous_u.Grad(X(1)*Test_t)) + Previous_kappa*((X(1)*Grad_Previous_t).Grad(Previous_u.Grad(X(1)*Test_t))) + " + time_int_t + "*Previous_u.Grad(X(1)*Test_t)*(1+BDFf_t))"
+                S_SUPG_t = "(u.Grad(X(1)*t)*(u.Grad(X(1)*Test_t)) + kappa*((X(1)*Grad_t).Grad(u.Grad(X(1)*Test_t))) + " + time_int_t + "*u.Grad(X(1)*Test_t))"
+                S_SUPG_t_init = "((Previous_u.Grad(X(1)*Previous_t))*(Previous_u.Grad(X(1)*Test_t)) + Previous_kappa*((X(1)*Grad_Previous_t).Grad(Previous_u.Grad(X(1)*Test_t))) + " + time_int_t + "*Previous_u.Grad(X(1)*Test_t))"
                 tau_SUPG_t = '1/(2/dt*(1+BDFf_t) + 4*X(1)*kappa/(h*h) + 2*Norm(X(1)*u)/h)*xi'
-                tau_SUPG_t_init = 'BDFf_t/(2/dt*(1+BDFf_t) + 4*X(1)*Previous_kappa/(h*h) + 2*Norm(X(1)*Previous_u)/h)*xi_init'
+                tau_SUPG_t_init = 'BDFf_t/(2/dt + 4*X(1)*Previous_kappa/(h*h) + 2*Norm(X(1)*Previous_u)/h)*xi_init'
             md.add_nonlinear_term(mim, tau_SUPG_t + '*' + S_SUPG_t)
             md.add_nonlinear_term(mim, tau_SUPG_t_init + '*' + S_SUPG_t_init)
 
         if 'GLS' in ins.stab_t:
             if 'planar' in ins.symmetry:
-                S_SUPG_t = "((u.Grad_t)*(u.Grad_Test_t) + kappa*(Grad_t).Grad(u.Grad_Test_t) +" + time_int_t + "*(u.Grad_Test_t)*(1+BDFf_t))"
-                S_SUPG_t_init = "((Previous_u.Grad_Previous_t)*(Previous_u.Grad_Test_t) + Previous_kappa*(Grad_Previous_t).Grad(Previous_u.Grad_Test_t) + " + time_int_t + "*(Previous_u.Grad_Test_t)*(1+BDFf_t))"
-                S_GLS_t = "(" + S_SUPG_t + "- (u.Grad_t)*Trace(Grad(kappa*Grad_Test_t)) + " + time_int_t + "*(Trace(Grad(kappa*Grad_Test_t)))*(1+BDFf_t))"
-                S_GLS_t_init = "(" + S_SUPG_t_init + "- (Previous_u.Grad_Previous_t)*Trace(Grad(Previous_kappa*Grad_Test_t)) + " + time_int_t + "*(Trace(Grad(Previous_kappa*Grad_Test_t)))*(1+BDFf_t))"
-                tau_GLS_t = '1/(2/dt*(1+BDFf_t) + 4*kappa/(h*h) + 2*Norm(u)/h)*xi'
+                S_SUPG_t = "((u.Grad_t)*(u.Grad_Test_t) + kappa*(Grad_t).Grad(u.Grad_Test_t) +" + time_int_t + "*(u.Grad_Test_t))"
+                S_SUPG_t_init = "((Previous_u.Grad_Previous_t)*(Previous_u.Grad_Test_t) + Previous_kappa*(Grad_Previous_t).Grad(Previous_u.Grad_Test_t) + " + time_int_t + "*(Previous_u.Grad_Test_t))"
+                S_GLS_t = "(" + S_SUPG_t + "- (u.Grad_t)*Trace(Grad(kappa*Grad_Test_t)) + " + time_int_t + "*(Trace(Grad(kappa*Grad_Test_t))))"
+                S_GLS_t_init = "(" + S_SUPG_t_init + "- (Previous_u.Grad_Previous_t)*Trace(Grad(Previous_kappa*Grad_Test_t)) + " + time_int_t + "*(Trace(Grad(Previous_kappa*Grad_Test_t))))"
+                tau_GLS_t = '1/(2/dt + 4*kappa/(h*h) + 2*Norm(u)/h)*xi'
                 tau_GLS_t_init = 'BDFf_t/(2/dt + 4*Previous_kappa/(h*h) + 2*Norm(Previous_u)/h)*xi_init'
 
             elif 'axial' in ins.symmetry:
-                S_SUPG_t = "(u.Grad(X(1)*t)*(u.Grad(X(1)*Test_t)) + kappa*((X(1)*Grad_t).Grad(u.Grad(X(1)*Test_t))) + " + time_int_t + "*u.Grad(X(1)*Test_t)*(1+BDFf_t))"
-                S_SUPG_t_init = "((Previous_u.Grad(X(1)*Previous_t))*(Previous_u.Grad(X(1)*Test_t)) + Previous_kappa*((X(1)*Grad_Previous_t).Grad(Previous_u.Grad(X(1)*Test_t))) + " + time_int_t + "*Previous_u.Grad(X(1)*Test_t)*(1+BDFf_t))"
-                S_GLS_t = "(" + S_SUPG_t + "- (u.Grad(X(1)*t))*Trace(Grad(kappa*(X(1)*Grad_Test_t))) + " + time_int_t + "*(Trace(Grad(kappa*(X(1)*Grad_Test_t))))*(1+BDFf_t))"
-                S_GLS_t_init = "(" + S_SUPG_t_init + "- (Previous_u.Grad(X(1)*Previous_t))*Trace(Grad(Previous_kappa*(X(1)*Grad_Test_t))) + " + time_int_t + "*(Trace(Grad(Previous_kappa*(X(1)*Grad_Test_t))))*(1+BDFf_t))"
-                tau_GLS_t = '1/(2/dt*(1+BDFf_t) + 4*X(1)*kappa/(h*h) + 2*Norm(X(1)*u)/h)*xi'
-                tau_GLS_t_init = 'BDFf_t/(2/dt*(1+BDFf_t) + 4*X(1)*Previous_kappa/(h*h) + 2*Norm(X(1)*Previous_u)/h)*xi_init'
+                S_SUPG_t = "(u.Grad(X(1)*t)*(u.Grad(X(1)*Test_t)) + kappa*((X(1)*Grad_t).Grad(u.Grad(X(1)*Test_t))) + " + time_int_t + "*u.Grad(X(1)*Test_t))"
+                S_SUPG_t_init = "((Previous_u.Grad(X(1)*Previous_t))*(Previous_u.Grad(X(1)*Test_t)) + Previous_kappa*((X(1)*Grad_Previous_t).Grad(Previous_u.Grad(X(1)*Test_t))) + " + time_int_t + "*Previous_u.Grad(X(1)*Test_t))"
+                S_GLS_t = "(" + S_SUPG_t + "- (u.Grad(X(1)*t))*Trace(Grad(kappa*(X(1)*Grad_Test_t))) + " + time_int_t + "*(Trace(Grad(kappa*(X(1)*Grad_Test_t)))))"
+                S_GLS_t_init = "(" + S_SUPG_t_init + "- (Previous_u.Grad(X(1)*Previous_t))*Trace(Grad(Previous_kappa*(X(1)*Grad_Test_t))) + " + time_int_t + "*(Trace(Grad(Previous_kappa*(X(1)*Grad_Test_t)))))"
+                tau_GLS_t = '1/(2/dt + 4*X(1)*kappa/(h*h) + 2*Norm(X(1)*u)/h)*xi'
+                tau_GLS_t_init = 'BDFf_t/(2/dt + 4*X(1)*Previous_kappa/(h*h) + 2*Norm(X(1)*Previous_u)/h)*xi_init'
 
             md.add_nonlinear_term(mim, tau_GLS_t + '*' + S_GLS_t)
             md.add_nonlinear_term(mim, tau_GLS_t_init + '*' + S_GLS_t_init)
 
 
     if ins.temperature & ins.solidification:
-        time_int_d = "((BDF0*d+(BDF1*Previous_d+BDF2*Previous2_d)*Previous_solid)/dt)*(1+BDFf)"
+        time_int_d = "((BDF0*d+(BDF1*Previous_d+BDF2*Previous2_d)*Previous_solid)/dt)"
         if 'planar' in ins.symmetry:
             advection_d = "(u.Grad_Previous_d).Test_d*Previous_solid"
             source_d = "(-u.Test_d*solid - BDFf*(Previous_u.Test_d)*Previous_solid)"
         elif 'axial' in ins.symmetry:
-            time_int_d = "X(1)*" + time_int_d + '*(1+BDFf)'
+            time_int_d = "X(1)*" + time_int_d
             advection_d = "(u.Grad(X(1)*Previous_d)).Test_d*Previous_solid"
             source_d = "(-X(1)*u.Test_d*solid - BDFf*X(1)*(Previous_u.Test_d)*Previous_solid)"
 
-        md.add_nonlinear_term(mim, time_int_d + '.Test_d*(1+BDFf)')
+        md.add_nonlinear_term(mim, time_int_d + '.Test_d')
         md.add_nonlinear_term(mim, advection_d)
         md.add_nonlinear_term(mim, source_d)
 
@@ -1193,19 +1198,19 @@ for outfilei in outfiles:
             if 'planar' in ins.symmetry:
                 S_SUPG_d = "((u.Grad_Previous_d).(u.Grad_Test_d) - u.(u.Grad_Test_d))"
                 S_SUPG_d_init = "((Previous_u.Grad_Previous_d).(Previous_u.Grad_Test_d) - Previous_u.(Previous_u.Grad_Test_d))"
-                tau_SUPG_d = "1/(2/dt*(1+BDFf) + 2*Norm(u)/h)"
-                tau_SUPG_d_init = "BDFf/(2/dt*(1+BDFf) + 2*Norm(Previous_u)/h)"
+                tau_SUPG_d = "1/(2/dt + 2*Norm(u)/h)"
+                tau_SUPG_d_init = "BDFf/(2/dt+ 2*Norm(Previous_u)/h)"
 
-                md.add_nonlinear_term(mim, tau_SUPG_d + '*' + time_int_d + '.(u.Grad_Test_d)*(1+BDFf)')
-                md.add_nonlinear_term(mim, tau_SUPG_d_init + '*' + time_int_d + '.(Previous_u.Grad_Test_d)*(1+BDFf)')
+                md.add_nonlinear_term(mim, tau_SUPG_d + '*' + time_int_d + '.(u.Grad_Test_d)')
+                md.add_nonlinear_term(mim, tau_SUPG_d_init + '*' + time_int_d + '.(Previous_u.Grad_Test_d)')
             elif 'axial' in ins.symmetry:
                 S_SUPG_d = "((u.Grad(X(1)*Previous_d)).(u.Grad(X(1)*Test_d)) - X(1)*u.(u.Grad(X(1)*Test_d)))"
                 S_SUPG_d_init = "((Previous_u.Grad(X(1)*Previous_d)).(Previous_u.Grad(X(1)*Test_d)) - X(1)*Previous_u.(Previous_u.Grad(X(1)*Test_d)))"
-                tau_SUPG_d = "1/(2/dt*(1+BDFf) + 2*Norm(X(1)*u)/h)"
-                tau_SUPG_d_init = "BDFf/(2/dt*(1+BDFf) + 2*Norm(X(1)*Previous_u)/h)"
+                tau_SUPG_d = "1/(2/dt + 2*Norm(X(1)*u)/h)"
+                tau_SUPG_d_init = "BDFf/(2/dt+ 2*Norm(X(1)*Previous_u)/h)"
 
-                md.add_nonlinear_term(mim, tau_SUPG_d + '*' + time_int_d + '.(u.Grad(X(1)*Test_d))*(1+BDFf)')
-                md.add_nonlinear_term(mim, tau_SUPG_d_init + '*' + time_int_d + '.(Previous_u.Grad(X(1)*Test_d))*(1+BDFf)')
+                md.add_nonlinear_term(mim, tau_SUPG_d + '*' + time_int_d + '.(u.Grad(X(1)*Test_d))')
+                md.add_nonlinear_term(mim, tau_SUPG_d_init + '*' + time_int_d + '.(Previous_u.Grad(X(1)*Test_d))')
 
             md.add_nonlinear_term(mim, tau_SUPG_d + '*' + S_SUPG_d + '*solid')
             md.add_nonlinear_term(mim, tau_SUPG_d_init + '*' + S_SUPG_d_init + '*Previous_solid')
@@ -1234,17 +1239,13 @@ for outfilei in outfiles:
             f_yi = ones_mat * 0
 
         md_init.add_initialized_fem_data('body', mfmat, [f_xi, f_yi])
-        md_init.add_nonlinear_term(mim_all, '-body.Test_u')
+        md_init.add_nonlinear_term(mim_all, 'body.Test_u')
 
         if ('axial' in ins.symmetry) & (~ins.steady):
             f_xi = x_mat * f_xi
             f_yi = x_mat * f_yi
         md.add_initialized_fem_data('body', mfmat, [f_xi, f_yi])
-
-        if ins.steady:
-            md.add_nonlinear_term(mim, '-body.Test_u')
-        else:
-            md.add_nonlinear_term(mim, '-(1 + BDFf)*body.Test_u')
+        md.add_nonlinear_term(mim, '-(1+BDFf)*body.Test_u')
 
 
     # add boundary conditions
@@ -1258,14 +1259,14 @@ for outfilei in outfiles:
             H = np.array([[0,0],[0,0]])
             if (type(eval('ins.' + bound + '_' + var + 'x')) is float) or (type(eval('ins.' + bound + '_' + var + 'x')) is int):
                 data_x = eval('ins.' + bound + '_' + var + 'x') * ones_p
-                #u_init[mfu.basic_dof_on_region(i+1)][::2] = eval('ins.' + bound + '_' + var + 'x') * ones_u[mfu.basic_dof_on_region(i+1)][::2]
+                u_init[mfu.basic_dof_on_region(i+1)][::2] = eval('ins.' + bound + '_' + var + 'x') * ones_u[mfu.basic_dof_on_region(i+1)][::2]
                 H[0,0] = 1
                 dirichlet = True
             if type(eval('ins.' + bound + '_' + var + 'x')) is str:
                 data_x = eval(eval('ins.' + bound + '_' + var + 'x').replace('X','x_p').replace('Y','y_p')) * ones_p
-                #u_init[mfu.basic_dof_on_region(i + 1)][::2] = (eval(eval('ins.' + bound + '_' + var + 'x').replace('X','x_u').replace('Y','y_u')) * ones_u)[
-                #                                                                                       mfu.basic_dof_on_region(
-                #                                                                                           i + 1)][::2]
+                u_init[mfu.basic_dof_on_region(i + 1)][::2] = (eval(eval('ins.' + bound + '_' + var + 'x').replace('X','x_u').replace('Y','y_u')) * ones_u)[
+                                                                                                       mfu.basic_dof_on_region(
+                                                                                                           i + 1)][::2]
                 dirichlet = True
                 H[0,0] = 1
             if type(eval('ins.' + bound + '_' + var + 'y')) is type(None):
@@ -1273,9 +1274,9 @@ for outfilei in outfiles:
 
             if (type(eval('ins.' + bound + '_' + var + 'y')) is float) or (type(eval('ins.' + bound + '_' + var + 'y')) is int):
                 data_y = eval('ins.' + bound + '_' + var + 'y') * ones_p
-                #u_init[mfu.basic_dof_on_region(i + 1)][1::2] = eval('ins.' + bound + '_' + var + 'y') * ones_u[
-                #                                                                                       mfu.basic_dof_on_region(
-                #                                                                                           i + 1)][1::2]
+                u_init[mfu.basic_dof_on_region(i + 1)][1::2] = eval('ins.' + bound + '_' + var + 'y') * ones_u[
+                                                                                                       mfu.basic_dof_on_region(
+                                                                                                           i + 1)][1::2]
                 dirichlet = True
                 H[1,1] = 1
             if type(eval('ins.' + bound + '_' + var + 'y')) is str:
@@ -1346,10 +1347,10 @@ for outfilei in outfiles:
     md.add_initialized_data('pamb0', [ins.p_amb])
 
     if (not ins.free_surface) | ins.solve_air:
-        md_init.add_pointwise_constraints_with_penalization('p',1e8,'pbound','pamb0')
-        md.add_pointwise_constraints_with_penalization('p',1e8,'pbound','pamb0')
+        md_init.add_pointwise_constraints_with_penalization('p',ins.max_eta*1e6,'pbound','pamb0')
+        md.add_pointwise_constraints_with_penalization('p',ins.max_eta*1e6,'pbound','pamb0')
     else:
-        md.add_nonlinear_term(mim_surf, '1e10*(p-pamb)*Test_p')
+        md.add_nonlinear_term(mim_surf, str(ins.max_eta*1e6) + '*(p-pamb)*Test_p')
 
     if ins.temperature:
         for i, bound in enumerate(bounds):
@@ -1367,8 +1368,9 @@ for outfilei in outfiles:
 
             if dirichlet:
                 md.add_initialized_fem_data(bound + 'data_t', mft, [data_t])
-                md.add_Dirichlet_condition_with_multipliers(mim, 't', 2, i + 1,
+                md.add_Dirichlet_condition_with_multipliers(mim, 't', 1, i + 1,
                                                             dataname=bound + 'data_t')
+
                 md.set_variable('Previous2_t',t_init)
                 md.set_variable('Previous_t', t_init)
 
@@ -1382,7 +1384,7 @@ for outfilei in outfiles:
                 if 'axial' in ins.symmetry:
                     data_t = x_mat*data_t
 
-                md.add_initialized_fem_data(bound + 'data_dt', mfmat, [(1 + md.variable('BDFf_t'))*data_t, (1 + md.variable('BDFf_t'))*data_t])
+                md.add_initialized_fem_data(bound + 'data_dt', mfmat, [(1+md.variable('BDFf_t'))*data_t, (1+md.variable('BDFf_t'))*data_t])
                 md.add_normal_source_term_brick(mim, 't', bound + 'data_dt', i + 1)
 
         # add temperature or flux to free surface (default to temperature if provided)
@@ -1390,7 +1392,7 @@ for outfilei in outfiles:
         if ins.free_surface:
             if (type(ins.surface_temp) is float) or (type(ins.surface_temp) is int):
                 md.add_initialized_fem_data('surface_temp', mft, [ins.surface_temp * ones_t])
-                md.add_nonlinear_term(mim_surf,'1e5*(t-surface_temp)*Test_t')
+                md.add_nonlinear_term(mim_surf,'1e6*(t-surface_temp)*Test_t')
                 #md.add_Dirichlet_condition_with_multipliers(mim_surf, 't', 2, -1, dataname='surface_temp')
             # fixed temperature flux
             elif (type(ins.surface_flux) is float) or (type(ins.surface_flux) is int):
@@ -1475,6 +1477,8 @@ for outfilei in outfiles:
         md.set_variable('Previous2_u', u_init)
         if ins.temperature:
             md.set_variable('t',t_init)
+            md.set_variable('Previous_t', t_init)
+            md.set_variable('Previous2_t', t_init)
 
         err_u = np.zeros(int(np.ceil(ins.tf / ins.dt) + 1))
         err_p = np.zeros(int(np.ceil(ins.tf / ins.dt) + 1))
@@ -1553,9 +1557,7 @@ for outfilei in outfiles:
                         true_d[1::2] = eval(ins.true_dy.replace('X', 'x_u').replace('Y', 'y_u'))[1::2]
                         mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_dtrue_' + numstr + '.vtk',
                                           true_d)
-                        err_d[0] = compute_L2_dist(mfu, d_init, mim, mfu, true_d) / compute_L2_norm(mfu,
-                                                                                                              true_d,
-                                                                                                              mim)
+                        err_d[0] = compute_L2_dist(mfu, d_init, mim, mfu, true_d)
                     else:
                         err_d[0] = compute_L2_norm(mfu, d_init, mim)
                     #mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_VM_' + numstr + '.vtk',
@@ -1653,8 +1655,9 @@ for outfilei in outfiles:
                 mfp_previous2.adapt()
                 mfmat_previous.adapt()
                 mfmat_previous2.adapt()
-                mfmu_previous.adapt()
-                mfmu_previous2.adapt()
+                if ins.t_enrich:
+                    mfmu_previous.adapt()
+                    mfmu_previous2.adapt()
 
             md.set_variable('Previous2_u', u_init)
             md.set_variable('Previous_u', md.variable('u'))
@@ -1672,7 +1675,8 @@ for outfilei in outfiles:
             if ins.free_surface:
                 md.set_variable('Previous2_psi', psi_init)
                 md.set_variable('Previous_psi', ls1.values(0))
-                mfmu_previous2.adapt()
+                if ins.t_enrich:
+                    mfmu_previous2.adapt()
                 mfmat_previous2.adapt()
 
             md.set_variable('Previous2_rho', rho_init)
@@ -1709,12 +1713,14 @@ for outfilei in outfiles:
                 md.set_variable('Previous_fext',fext)
 
                 mfmat_previous2.adapt()
-                mfmu_previous2.adapt()
+                if ins.t_enrich:
+                    mfmu_previous2.adapt()
             md.set_variable('Previous2_rho', md.variable('Previous_rho'))
 
         if ins.free_surface:
             mfmat_previous.adapt()
-            mfmu_previous.adapt()
+            if ins.t_enrich:
+                mfmu_previous.adapt()
         md.set_variable('Previous_rho',md.variable('rho'))
         md.set_variable('Previous_beta', md.variable('beta'))
         if ins.temperature:
@@ -1732,11 +1738,10 @@ for outfilei in outfiles:
         for j in np.arange(ins.n_outer_iter):
             # density
             Previous_rho = 1*rho
+            rho = ones_mat * ins.rho1
             if ins.free_surface:
-                ls1_mat = compute_interpolate_on(mfls,md.variable('psis'),D_mat)
-                rho = 0*ones_mat
-                rho[(ls1_mat <= 0)] = ins.rho1
-                rho[(ls1_mat > 0)] = ins.rho2
+                ls1_mat = compute_interpolate_on(mfls,ls1.values(0),D_mat)
+                rho[ls1_mat > 0] = ins.rho2
             if ins.topography:
                 ls3_mat = compute_interpolate_on(mfls, ls3.values(0), D_mat)
                 rho[ls3_mat < 0] = ins.rho3
@@ -1767,14 +1772,17 @@ for outfilei in outfiles:
                 T_mu = compute_interpolate_on(mft,T,D_mu)
                 eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('vft','ins.vft').replace('etar','ins.etar').replace('T','T_mu'))
                 eta[eta > ins.max_eta] = ins.max_eta
-                eta[T_mu <= ins.vftb/(np.log(ins.max_eta)-ins.vfta) - 273 + ins.vftc] = ins.max_eta
+                eta[T_mu <= ins.vftb/(np.log10(ins.max_eta)-ins.vfta) - 273 + ins.vftc] = ins.max_eta
                 if ins.temperature & ins.solidification:
-                    #T_ls = compute_interpolate_on(mft,T,mfls)
-                    ls2.set_values((T - Tg) / Tg)
+                    T_ls2 = compute_interpolate_on(mft0,md.variable('t'),mft)
+                    ls2.set_values((T_ls2 - Tg) / Tg)
                     ls2_mu = compute_interpolate_on(mft0, ls2.values(0), D_mu)
+                    ls2_mat = compute_interpolate_on(mft0, ls2.values(0), D_mat)
 
             else:
                 eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0)).replace('vft','ins.vft').replace('etar','ins.etar')) * ones_mu
+                eta[eta > ins.max_eta] = ins.max_eta
+                eta[ins.T0*ones_mu <= ins.vftb / (np.log10(ins.max_eta) - ins.vfta) - 273 + ins.vftc] = ins.max_eta
 
             if ins.free_surface:
                 ls1_mu = compute_interpolate_on(mfls, ls1.values(0), D_mu)
@@ -1783,18 +1791,15 @@ for outfilei in outfiles:
                 ls3_mu = compute_interpolate_on(mfls, ls3.values(0), mfmu.basic_dof_nodes())
                 eta[ls3_mu < 0] = ins.eta3
             mu = 1*eta
-
             lam = -2/3*eta
             solid = 0 * ones_mat
             if ins.temperature & ins.solidification:
-                ls2_mu = compute_interpolate_on(mft0, ls2.values(0), mfmu.basic_dof_nodes())
                 # elasticity
                 if ins.free_surface:
                     lam[(ls1_mu <= 0) & (ls2_mu <= 0)] = lam_solid
                     mu[(ls1_mu <= 0) & (ls2_mu <= 0)] = mu_solid
 
                     ls1_mat = compute_interpolate_on(mfls, ls1.values(0), D_mat)
-                    ls2_mat = compute_interpolate_on(mft0, ls2.values(0), D_mat)
 
                     solid[(ls1_mat <= 0) & (ls2_mat <= 0)] = 1
                     beta[(ls1_mat <= 0) & (ls2_mat <= 0)] = 3*(1-2*ins.nu)/ins.E
@@ -1804,12 +1809,13 @@ for outfilei in outfiles:
                     solid[ls2_mat <= 0] = 1
                     beta[ls2_mat <= 0] = 3 * (1 - 2 * ins.nu) / ins.E
 
-                solid = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
+                if ins.free_surface:
+                    solid = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
                                            remove_small_objects(sciinterp.griddata(D_mat.transpose(), solid,
                                                                                    np.array([x_grid.flatten(),
                                                                                              y_grid.flatten()]).transpose(),
                                                                                    method='nearest').reshape(x_grid.shape).astype(int),
-                                                                min_size=25).flatten(),
+                                                                min_size=9).flatten(),
                                            D_mat.transpose(), method='nearest')
 
                 md.set_variable('solid', solid)
@@ -1901,7 +1907,7 @@ for outfilei in outfiles:
                         data_dy = x_u * data_dy
 
                     if neumann:
-                        md.set_variable(bound + 'data_d' + var, [(1 + md.variable('BDFf')) * data_dx, (1 + md.variable('BDFf')) * data_dy])
+                        md.set_variable(bound + 'data_d' + var, [data_dx, data_dy])
 
             if ins.temperature:
                 for i, bound in enumerate(bounds):
@@ -1925,7 +1931,7 @@ for outfilei in outfiles:
                             data_t = -eval(eval('ins.' + bound + '_dt')) * kappa
                         if 'axial' in ins.symmetry:
                             data_t = x_mat * data_t
-                        md.set_variable(bound + 'data_dt', [(1+md.variable('BDFf_t'))*data_t, (1+md.variable('BDFf_t'))*data_t])
+                        md.set_variable(bound + 'data_dt', [data_t, data_t])
 
             # update surface flux
             if ins.temperature:
@@ -2060,7 +2066,7 @@ for outfilei in outfiles:
                     D[(Ls3_u < 0)] = 0
 
             if (((int(ti/ins.dt) % ins.noutput == 0) & (ti>=ins.dt)) or (np.abs(ti - ins.tf) < ins.dt)) & (j == (ins.n_outer_iter-1)):
-                numstr = str(round(ti * 10 ** ndecimal)).split('.')[0].zfill(ndigits)
+                numstr = str(round(ti * 10 ** (ndecimal-1))).split('.')[0].zfill(ndigits)
                 # print('Average temperature %g' % np.mean(T))
                 if ins.vtk:
                     mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_u_' + numstr + '.vtk', U)
@@ -2131,16 +2137,15 @@ for outfilei in outfiles:
                                 true_d[1::2] = eval(ins.true_dy.replace('X', 'x_u').replace('Y', 'y_u'))[1::2]
                                 mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_dtrue_' + numstr + '.vtk',
                                                   true_d)
-                                err_d[int(ti / ins.dt)] = compute_L2_dist(mfu, D, mim, mfu, true_d) / compute_L2_norm(mfu,
-                                                                                                                      true_d,
-                                                                                                                      mim)
+                                err_d[int(ti / ins.dt)] = compute_L2_dist(mfu, D, mim, mfu, true_d)
                             else:
                                 err_d[int(ti / ins.dt)] = compute_L2_norm(mfu, D, mim)
                             #mfp.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_VM_' + numstr + '.vtk',
                             #                      md.compute_isotropic_linearized_Von_Mises_pstrain('d', 'E', 'nu', mfp))
                             mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_solid_' + numstr + '.vtk',solid)
+                            T_ls2 = compute_interpolate_on(mft0, md.variable('t'), mft)
                             mft0.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls2_' + numstr + '.vtk',
-                                              (T - Tg) / Tg)
+                                              (T_ls2 - Tg) / Tg)
                     if ins.topography:
                         mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls3_' + numstr + '.vtk',
                                            ls3.values(0))
@@ -2358,6 +2363,8 @@ for outfilei in outfiles:
                         #                   md.variable('psi'))
                 mls.adapt()
                 mlsxfem.adapt()
+                if ins.temperature & ins.solidification:
+                    mls2.adapt()
                 mfp.adapt()
                 D_p = mfp.basic_dof_nodes()
                 ones_p = np.ones(D_p.shape[1])
@@ -2371,11 +2378,12 @@ for outfilei in outfiles:
                 x_mat = D_mat[0, :]
                 y_mat = D_mat[1, :]
 
-                mfmu.adapt()
-                D_mu = mfmu.basic_dof_nodes()
-                ones_mu = np.ones(D_mu.shape[1])
-                x_mu = D_mu[0, :]
-                y_mu = D_mu[1, :]
+                if ins.t_enrich:
+                    mfmu.adapt()
+                    D_mu = mfmu.basic_dof_nodes()
+                    ones_mu = np.ones(D_mu.shape[1])
+                    x_mu = D_mu[0, :]
+                    y_mu = D_mu[1, :]
 
                 mim.adapt()
                 mim_surf.adapt()
@@ -2440,8 +2448,10 @@ for outfilei in outfiles:
                     D[(Previous_Ls_u >= 0) & (Ls1_u <= 0)] = D_ext[(Previous_Ls_u >= 0) & (Ls1_u <= 0)]
 
             if ins.temperature & ins.solidification:
-                #T_ls = compute_interpolate_on(mft,T,mfls)
-                ls2.set_values((T - Tg) / Tg)
+                T_ls2 = compute_interpolate_on(mft0, md.variable('t'), mft)
+                ls2.set_values((T_ls2 - Tg) / Tg)
+                ls2_mu = compute_interpolate_on(mft0, ls2.values(0), mfmu)
+                ls2_mat = compute_interpolate_on(mft0,ls2.values(0),mfmat)
 
         # update BDF coefficients
         md.set_variable('BDF0', [3 / 2])
@@ -2449,8 +2459,6 @@ for outfilei in outfiles:
         md.set_variable('BDF2', [1 / 2])
         md.set_variable('BDFf', [0])
         md.set_variable('BDFf_t', [0])
-        if (ti < (ins.dt - ins.dt / 100)) | (ins.ndt0 == 1):
-            md.set_variable('dt', ins.dt / ins.ndt0)
 
     #if ins.free_surface | ins.topography:
     #    mfp_cut.set_partial(eval(ind_p))
