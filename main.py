@@ -64,6 +64,7 @@ for outfilei in outfiles:
     ti = 0
     if ins.restart:
         try:
+            # restart from last saved file
             hf = h5py.File(ins.outfile + '/' + ins.outfile.split('/')[-1] + '.h5', 'r+')
             U = hf.get('last_u')[:]
             Previous_u = hf.get('last2_u')[:]
@@ -85,7 +86,7 @@ for outfilei in outfiles:
 
             if ins.temperature:
                 T = hf.get('last_t')[:]
-                Previous_t = hf.get('last2_T')[:]
+                Previous_t = hf.get('last2_t')[:]
                 err_t_i = hf.get('err_t')[:]
                 err_t = np.zeros(int(np.ceil(ins.tf / ins.dt)))
                 err_t[:len(err_t_i)] = err_t_i
@@ -323,88 +324,24 @@ for outfilei in outfiles:
     mfmat0 = gf.MeshFem(mesh, 1)
     mfmat0.set_classical_fem(ins.mat_k)
 
-    mfmat_cutoff0 = gf.MeshFem(mesh, 1)
-    mfmat_cutoff0.set_classical_fem(1)
+    mfmu0 = gf.MeshFem(mesh,1)
+    mfmu0.set_classical_fem(ins.t_k)
 
     if ins.free_surface:
-        mfp_cutoff0 = gf.MeshFem(mesh, 1)
-        mfp_cutoff0.set_classical_fem(1)
-        mf_cutoff = gf.GlobalFunction('cutoff',1,np.sqrt(dx**2 + dy**2),np.sqrt(dx**2 + dy**2)/100,np.sqrt(dx**2 + dy**2))
-        mf_cutoff_ls1 = gf.MeshFem('global function',mesh,ls1,[mf_cutoff],2)
-        mf_cutoff_ls1_previous = gf.MeshFem('global function', mesh, ls1_previous, [mf_cutoff], 2)
-        mf_cutoff_ls1_previous2 = gf.MeshFem('global function', mesh, ls1_previous2, [mf_cutoff], 2)
-        mf_cutoff_ls1_init = gf.MeshFem('global function', mesh, ls1_init, [mf_cutoff], 2)
-        if ins.topography:
-            mf_cutoff_ls3 = gf.MeshFem('global function', mesh, ls3, [mf_cutoff], 2)
-            mfp_cutoff3 = gf.MeshFem('product', mf_cutoff_ls3, mfp_cutoff0)
-            mfp_cutoff = gf.MeshFem('product', mf_cutoff_ls1, mfp_cutoff3)
-            mfp_cutoff_previous = gf.MeshFem('product', mf_cutoff_ls1_previous, mfp_cutoff3)
-            mfp_cutoff_previous2 = gf.MeshFem('product', mf_cutoff_ls1_previous2, mfp_cutoff3)
-            mfp_cutoff_init = gf.MeshFem('product', mf_cutoff_ls1_init, mfp_cutoff3)
-        else:
-            mfp_cutoff = gf.MeshFem('product', mf_cutoff_ls1, mfp_cutoff0)
-            mfp_cutoff_previous = gf.MeshFem('product', mf_cutoff_ls1_previous, mfp_cutoff0)
-            mfp_cutoff_previous2 = gf.MeshFem('product', mf_cutoff_ls1_previous2, mfp_cutoff0)
-            mfp_cutoff_init = gf.MeshFem('product', mf_cutoff_ls1_init, mfp_cutoff0)
-
         mfp = gf.MeshFem('levelset', mlsxfem, mfp0)
         mfp_previous = gf.MeshFem('levelset', mlsxfem_previous, mfp0)
         mfp_previous2 = gf.MeshFem('levelset', mlsxfem_previous2, mfp0)
         mfp_init = gf.MeshFem('levelset', mlsxfem_init, mfp0)
 
-
-        #mfp = gf.MeshFem('sum', mfp_cutoff, mfp0)
-        #mfp_previous = gf.MeshFem('sum', mfp_cutoff_previous, mfp0)
-        #mfp_previous2 = gf.MeshFem('sum', mfp_cutoff_previous2, mfp0)
-        #mfp_init = gf.MeshFem('sum', mfp_cutoff_init, mfp0)
-
-        DOFpts_p = mfp.basic_dof_nodes()
-        enriched_dofs1 = (np.nonzero(
-            np.abs(compute_interpolate_on(mfls, ls1.values(0), DOFpts_p)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-        if ins.topography:
-            enriched_dofs3 = (np.nonzero(
-                np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_p)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-            enriched_dofsp = np.append(enriched_dofs1,enriched_dofs3)
-        else:
-            enriched_dofsp = enriched_dofs1
-        enriched_dofsp = enriched_dofsp[enriched_dofsp > 1]
-        mfp_cutoff.set_enriched_dofs(enriched_dofsp)
-        mfp_cutoff_previous.set_enriched_dofs(enriched_dofsp)
-        mfp_cutoff_previous2.set_enriched_dofs(enriched_dofsp)
-        mfp_cutoff_init.set_enriched_dofs(enriched_dofsp)
-        enriched_dofsp_previous = enriched_dofsp
-
-        DOFpts_mat = mfmat0.basic_dof_nodes()
-        if ins.topography:
-            mfmat_cutoff3 = gf.MeshFem('product', mf_cutoff_ls3, mfmat_cutoff0)
-            mfmat_cutoff = gf.MeshFem('product', mf_cutoff_ls1, mfmat_cutoff0)
-            mfmat_cutoff_previous = gf.MeshFem('product', mf_cutoff_ls1_previous, mfmat_cutoff0)
-            mfmat_cutoff_previous2 = gf.MeshFem('product', mf_cutoff_ls1_previous2, mfmat_cutoff0)
-            mfmat_cutoff_init = gf.MeshFem('product', mf_cutoff_ls1_init, mfmat_cutoff0)
-        else:
-            mfmat_cutoff = gf.MeshFem('product', mf_cutoff_ls1, mfmat_cutoff0)
-            mfmat_cutoff_previous = gf.MeshFem('product', mf_cutoff_ls1_previous, mfmat_cutoff0)
-            mfmat_cutoff_previous2 = gf.MeshFem('product', mf_cutoff_ls1_previous2, mfmat_cutoff0)
-            mfmat_cutoff_init = gf.MeshFem('product', mf_cutoff_ls1_init, mfmat_cutoff0)
-        enriched_dofs1 = (np.nonzero(
-            np.abs(compute_interpolate_on(mfls, ls1.values(0), DOFpts_mat)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-        if ins.topography:
-            enriched_dofs3 = (np.nonzero(
-                np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_mat)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-            enriched_dofsmat = np.append(enriched_dofs1, enriched_dofs3)
-        else:
-            enriched_dofsmat = enriched_dofs1
-        enriched_dofsmat = enriched_dofsmat[enriched_dofsmat > 1]
-        enriched_dofsmat_previous = enriched_dofsmat
-        mfmat_cutoff.set_enriched_dofs(enriched_dofsmat)
-        mfmat_cutoff_previous.set_enriched_dofs(enriched_dofsmat)
-        mfmat_cutoff_previous2.set_enriched_dofs(enriched_dofsmat)
-        mfmat_cutoff_init.set_enriched_dofs(enriched_dofsmat)
-        #mfmat = gf.MeshFem('sum', mfmat_cutoff, mfmat0)
         mfmat = gf.MeshFem('levelset', mlsxfem, mfmat0)
         mfmat_previous = gf.MeshFem('levelset', mlsxfem_previous, mfmat0)
         mfmat_previous2 = gf.MeshFem('levelset', mlsxfem_previous2, mfmat0)
         mfmat_init = gf.MeshFem('levelset', mlsxfem_init, mfmat0)
+
+        mfmu = gf.MeshFem('levelset', mlsxfem, mfmu0)
+        mfmu_previous = gf.MeshFem('levelset', mlsxfem_previous, mfmu0)
+        mfmu_previous2 = gf.MeshFem('levelset', mlsxfem_previous2, mfmu0)
+        mfmu_init = gf.MeshFem('levelset', mlsxfem_init, mfmu0)
     else:
         mfp = gf.MeshFem(mesh, 1)  # scalar field
         mfp.set_classical_fem(ins.p_k)  # continuous piecewise linear
@@ -424,33 +361,44 @@ for outfilei in outfiles:
         mfmat_previous2 = gf.MeshFem(mesh, 1)  # scalar field
         mfmat_previous2.set_classical_fem(ins.mat_k)  # continuous piecewise linear
 
+        mfmu = gf.MeshFem(mesh, 1)  # scalar field
+        mfmu.set_classical_fem(ins.t_k)  # continuous piecewise linear
+        mfmu_previous = gf.MeshFem(mesh, 1)  # scalar field
+        mfmu_previous.set_classical_fem(ins.t_k)  # continuous piecewise linear
+        mfmu_previous2 = gf.MeshFem(mesh, 1)  # scalar field
+        mfmu_previous2.set_classical_fem(ins.t_k)  # continuous piecewise linear
+        mfmu_init = gf.MeshFem(mesh, 1)  # scalar field
+        mfmu_init.set_classical_fem(ins.t_k)  # continuous piecewise linear
+
     # velocity
     mfu = gf.MeshFem(mesh, 2)  # vector field
     mfu.set_classical_fem(ins.u_k)  # continuous piecewise quadratic
     mfcurve = gf.MeshFem(mesh, 1)  # vector field
     mfcurve.set_classical_fem(ins.u_k)  # continuous piecewise quadratic
 
-    mfmu0 = gf.MeshFem(mesh, 1)
-    mfmu0.set_classical_fem(ins.t_k)
-
     mft0 = gf.MeshFem(mesh, 1)
     mft0.set_classical_fem(ins.t_k)
-    # temperature
-    if ins.t_enrich:
-        if ins.free_surface:
-            mft_xfem0 = gf.MeshFem(mesh, 1)
-            mft_xfem0.set_classical_fem(ins.t_k)
 
+    # temperature
+    if ins.temperature:
+        if ins.free_surface & ('cutoff' in ins.t_enrich):
             mft_cutoff0 = gf.MeshFem(mesh, 1)
-            mft_cutoff0.set_classical_fem(1)
+            mft_cutoff0.set_classical_fem(0)
+            mf_cutoff = gf.GlobalFunction('cutoff',1,np.sqrt(dx**2 + dy**2),np.sqrt(dx**2 + dy**2)/2,np.sqrt(dx**2 + dy**2))
+            mf_cutoff_ls1 = gf.MeshFem('global function',mesh,ls1,[mf_cutoff],10)
+            mf_cutoff_ls1_previous = gf.MeshFem('global function', mesh, ls1_previous, [mf_cutoff], 2)
+            mf_cutoff_ls1_previous2 = gf.MeshFem('global function', mesh, ls1_previous2, [mf_cutoff], 2)
+            mf_cutoff_ls1_init = gf.MeshFem('global function', mesh, ls1_init, [mf_cutoff], 2)
+            if ins.topography:
+               mf_cutoff_ls3 = gf.MeshFem('global function', mesh, ls3, [mf_cutoff], 2)
 
             DOFpts_t = mft0.basic_dof_nodes()
             if ins.topography:
                 mft_cutoff3 = gf.MeshFem('product', mf_cutoff_ls3, mft_cutoff0)
-                mft_cutoff = gf.MeshFem('product', mf_cutoff_ls1, mft_cutoff0)
-                mft_cutoff_previous = gf.MeshFem('product', mf_cutoff_ls1_previous, mft_cutoff0)
-                mft_cutoff_previous2 = gf.MeshFem('product', mf_cutoff_ls1_previous2, mft_cutoff0)
-                mft_cutoff_init = gf.MeshFem('product', mf_cutoff_ls1_init, mft_cutoff0)
+                mft_cutoff = gf.MeshFem('product', mf_cutoff_ls1, mft_cutoff3)
+                mft_cutoff_previous = gf.MeshFem('product', mf_cutoff_ls1_previous, mft_cutoff3)
+                mft_cutoff_previous2 = gf.MeshFem('product', mf_cutoff_ls1_previous2, mft_cutoff3)
+                mft_cutoff_init = gf.MeshFem('product', mf_cutoff_ls1_init, mft_cutoff3)
             else:
                 mft_cutoff = gf.MeshFem('product', mf_cutoff_ls1, mft_cutoff0)
                 mft_cutoff_previous = gf.MeshFem('product', mf_cutoff_ls1_previous, mft_cutoff0)
@@ -458,12 +406,12 @@ for outfilei in outfiles:
                 mft_cutoff_init = gf.MeshFem('product', mf_cutoff_ls1_init, mft_cutoff0)
 
             enriched_dofs1 = (np.nonzero(
-                np.abs(compute_interpolate_on(mfls, ls1.values(0), DOFpts_t)) < (np.sqrt(dx ** 2 + dy ** 2)))[
-                                  0] + 1)
+            np.abs(compute_interpolate_on(mfls, ls1.values(0), DOFpts_t)) < (np.sqrt(dx ** 2 + dy ** 2)))[
+                              0] + 1)
             if ins.topography:
                 enriched_dofs3 = (np.nonzero(
-                    np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_t)) < (np.sqrt(dx ** 2 + dy ** 2)))[
-                                  0] + 1)
+                np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_t)) < (np.sqrt(dx ** 2 + dy ** 2)))[
+                              0] + 1)
                 enriched_dofst = np.append(enriched_dofs1, enriched_dofs3)
             else:
                 enriched_dofst = enriched_dofs1
@@ -472,16 +420,17 @@ for outfilei in outfiles:
 
             mft_cutoff.set_enriched_dofs(enriched_dofst)
 
-            #mft = gf.MeshFem('levelset', mlsxfem, mft_xfem0)
             mft = gf.MeshFem('sum', mft_cutoff, mft0)
             mft_previous = gf.MeshFem('sum', mft_cutoff_previous, mft0)
             mft_previous2 = gf.MeshFem('sum', mft_cutoff_previous2, mft0)
             mft_init = gf.MeshFem('sum', mft_cutoff_init, mft0)
 
-            mfmu = gf.MeshFem('levelset', mlsxfem, mfmu0)
-            mfmu_previous = gf.MeshFem('levelset', mlsxfem_previous, mfmu0)
-            mfmu_previous2 = gf.MeshFem('levelset', mlsxfem_previous2, mfmu0)
-            mfmu_init = gf.MeshFem('levelset', mlsxfem_init, mfmu0)
+        elif ins.free_surface & ('heaviside' in ins.t_enrich):
+            mft = gf.MeshFem('levelset', mlsxfem, mft0)
+            mft_previous = gf.MeshFem('levelset', mlsxfem_previous, mft0)
+            mft_previous2 = gf.MeshFem('levelset', mlsxfem_previous2, mft0)
+            mft_init = gf.MeshFem('levelset', mlsxfem_init, mft0)
+
         else:
             mft = gf.MeshFem(mesh, 1)  # scalar field
             mft.set_classical_fem(ins.t_k)  # continuous piecewise linear
@@ -492,15 +441,6 @@ for outfilei in outfiles:
             mft_init = gf.MeshFem(mesh, 1)  # scalar field
             mft_init.set_classical_fem(ins.t_k)  # continuous piecewise linear
 
-            mfmu = gf.MeshFem(mesh, 1)  # scalar field
-            mfmu.set_classical_fem(ins.t_k)  # continuous piecewise linear
-            mfmu_previous = gf.MeshFem(mesh, 1)  # scalar field
-            mfmu_previous.set_classical_fem(ins.t_k)  # continuous piecewise linear
-            mfmu_previous2 = gf.MeshFem(mesh, 1)  # scalar field
-            mfmu_previous2.set_classical_fem(ins.t_k)  # continuous piecewise linear
-            mfmu_init = gf.MeshFem(mesh, 1)  # scalar field
-            mfmu_init.set_classical_fem(ins.t_k)  # continuous piecewise linear
-
     else:
         mft = gf.MeshFem(mesh, 1)  # scalar field
         mft.set_classical_fem(ins.t_k)  # continuous piecewise quadratic
@@ -510,15 +450,6 @@ for outfilei in outfiles:
         mft_previous2.set_classical_fem(ins.t_k)  # continuous piecewise quadratic
         mft_init = gf.MeshFem(mesh, 1)  # scalar field
         mft_init.set_classical_fem(ins.t_k)  # continuous piecewise quadratic
-
-        mfmu = gf.MeshFem(mesh, 1)  # scalar field
-        mfmu.set_classical_fem(ins.t_k)  # continuous piecewise quadratic
-        mfmu_previous = gf.MeshFem(mesh, 1)  # scalar field
-        mfmu_previous.set_classical_fem(ins.t_k)  # continuous piecewise quadratic
-        mfmu_previous2 = gf.MeshFem(mesh, 1)  # scalar field
-        mfmu_previous2.set_classical_fem(ins.t_k)  # continuous piecewise quadratic
-        mfmu_init = gf.MeshFem(mesh, 1)  # scalar field
-        mfmu_init.set_classical_fem(ins.t_k)  # continuous piecewise quadratic
 
     # above topography
     if (ins.free_surface & (~ins.solve_air)) | (ins.topography & (~ins.solve_topography)):
@@ -553,10 +484,10 @@ for outfilei in outfiles:
     x_p0 = D_p0[0, :]
     y_p0 = D_p0[1, :]
 
-    #D_p_init = mfp.basic_dof_nodes()
-    #ones_p_init = np.ones(D_p_init.shape[1])
-    #x_p_init = D_p_init[0, :]
-    #y_p_init = D_p_init[1, :]
+    D_p_init = mfp.basic_dof_nodes()
+    ones_p_init = np.ones(D_p_init.shape[1])
+    x_p_init = D_p_init[0, :]
+    y_p_init = D_p_init[1, :]
 
     D_ls = mfls.basic_dof_nodes()
     ones_ls = np.ones(D_ls.shape[1])
@@ -581,10 +512,20 @@ for outfilei in outfiles:
     x_t = D_t[0, :]
     y_t = D_t[1, :]
 
+    D_t_init = mft.basic_dof_nodes()
+    ones_t_init = np.ones(D_t_init.shape[1])
+    x_t_init = D_t_init[0, :]
+    y_t_init = D_t_init[1, :]
+
     D_mu = mfmu.basic_dof_nodes()
     ones_mu = np.ones(D_mu.shape[1])
     x_mu = D_mu[0, :]
     y_mu = D_mu[1, :]
+
+    D_mu0 = mfmu0.basic_dof_nodes()
+    ones_mu0 = np.ones(D_mu0.shape[1])
+    x_mu0 = D_mu0[0, :]
+    y_mu0 = D_mu0[1, :]
 
     if ins.plots:
         if ins.free_surface:
@@ -731,6 +672,8 @@ for outfilei in outfiles:
         kappa_init = kappa.copy()
         md.add_initialized_fem_data('kappa', mfmat, kappa)
         md.add_initialized_fem_data('Previous_kappa', mfmat_previous, kappa)
+        md.add_initialized_fem_data('Previous2_kappa', mfmat_previous2, kappa)
+        md.add_initialized_fem_data('kappa_init', mfmat_init, kappa)
 
         cp = ones_mat * ins.cp1
         if ins.free_surface:
@@ -738,6 +681,9 @@ for outfilei in outfiles:
         if ins.topography:
             cp[ls3_mat < 0] = ins.cp3
         md.add_initialized_fem_data('cp', mfmat, cp)
+        md.add_initialized_fem_data('Previous_cp', mfmat_previous, cp)
+        md.add_initialized_fem_data('Previous2_cp', mfmat_previous2, cp)
+        md.add_initialized_fem_data('cp_init', mfmat_init, cp)
 
     # Temperature
     if ins.temperature:
@@ -750,16 +696,16 @@ for outfilei in outfiles:
 
         else:
             if (type(ins.T_init) is float) or (type(ins.T_init) is int):
-                t_init = mft.eval('1') * ins.T_init
+                t_init = mft_init.eval('1') * ins.T_init
             elif type(ins.T_init) is str:
                 t_init = eval(ins.T_init.replace('X','x_t').replace('Y','y_t')) * ones_t
             elif type(ins.T_init) is type(None):
-                t_init = mft.eval('1') * ins.T0
+                t_init = mft_init.eval('1') * ins.T0
                 if ins.free_surface:
-                    ls1_t = compute_interpolate_on(mfls,ls1.values(0),mft)
+                    ls1_t = compute_interpolate_on(mfls,ls1.values(0),mft_init)
                     t_init[ls1_t > np.sqrt(dx**2 + dy**2)/20] = ins.T_amb
                 if ins.topography:
-                    ls3_t = compute_interpolate_on(mfls, ls3.values(0), mft)
+                    ls3_t = compute_interpolate_on(mfls, ls3.values(0), mft_init)
                     t_init[ls3_t < 0] = ins.T_amb
 
             md.add_initialized_data('tamb',[ins.T_amb])
@@ -767,15 +713,15 @@ for outfilei in outfiles:
             md.add_initialized_fem_data('Previous2_t', mft_previous2, t_init)
 
         T = t_init
-        T_mu = compute_interpolate_on(mft, T, mfmu.basic_dof_nodes())
+        T_mu = compute_interpolate_on(mft_init, T, mfmu_init.basic_dof_nodes())
         eta = eval(ins.eta_exp.replace('vfta', str(ins.vfta)).replace('vftb', str(ins.vftb)).replace(
             'vftc', str(ins.vftc)).replace('etar', str(ins.etar)).replace('T','T_mu').replace('exp', 'np.exp'))
         eta[T_mu <= ins.vftb/(np.log10(ins.max_eta)-ins.vfta) - 273 + ins.vftc] = ins.max_eta
 
         if ins.free_surface:
-            ls1_mu = compute_interpolate_on(mfls, ls1.values(0), mfmu.basic_dof_nodes())
+            ls1_mu = compute_interpolate_on(mfls, ls1.values(0), mfmu_init.basic_dof_nodes())
         if ins.topography:
-            ls3_mu= compute_interpolate_on(mfls, ls3.values(0), mfmu.basic_dof_nodes())
+            ls3_mu= compute_interpolate_on(mfls, ls3.values(0), mfmu_init.basic_dof_nodes())
 
         #T_ls = compute_interpolate_on(mft, t_init, mfls)
         if ins.solidification:
@@ -788,9 +734,9 @@ for outfilei in outfiles:
             eta[ls3_mu < 0] = ins.eta3
     else:
         if ins.free_surface:
-            ls1_mu = compute_interpolate_on(mfls, ls1.values(0), mfmu.basic_dof_nodes())
+            ls1_mu = compute_interpolate_on(mfls, ls1.values(0), mfmu_init.basic_dof_nodes())
         if ins.topography:
-            ls3_mu= compute_interpolate_on(mfls, ls3.values(0), mfmu.basic_dof_nodes())
+            ls3_mu= compute_interpolate_on(mfls, ls3.values(0), mfmu_init.basic_dof_nodes())
 
         eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('T', str(ins.T0)).replace('vft','ins.vft').replace('etar','ins.etar')) * ones_mu
         eta[eta > ins.max_eta] = ins.max_eta
@@ -843,6 +789,8 @@ for outfilei in outfiles:
         md.set_variable('beta',beta)
         md.set_variable('Previous_beta',beta)
 
+    mu_init = mu
+
     if ins.topography:
         ls3_mat = compute_interpolate_on(mfls, ls3.values(0), mfmat.basic_dof_nodes())
         topo[ls3_mat<0] = 0
@@ -859,10 +807,18 @@ for outfilei in outfiles:
     md.add_initialized_fem_data('Previous_mu', mfmu_previous, mu)
     md.add_initialized_fem_data('Previous_solid', mfmat_previous, solid)
 
-    md_init.add_initialized_fem_data('lambda', mfmu, lam)
-    md_init.add_initialized_fem_data('mu', mfmu, mu)
-    md_init.add_initialized_fem_data('solid', mfmat, solid)
-    md_init.add_initialized_fem_data('topo', mfmat, topo)
+    md.add_initialized_fem_data('Previous2_lambda', mfmu_previous2, lam)
+    md.add_initialized_fem_data('Previous2_mu', mfmu_previous2, mu)
+    md.add_initialized_fem_data('Previous2_solid', mfmat_previous2, solid)
+
+    md.add_initialized_fem_data('lambda_init', mfmu_init, lam)
+    md.add_initialized_fem_data('mu_init', mfmu_init, mu)
+    md.add_initialized_fem_data('solid_init', mfmat_init, solid)
+
+    md_init.add_initialized_fem_data('lambda', mfmu_init, lam)
+    md_init.add_initialized_fem_data('mu', mfmu_init, mu)
+    md_init.add_initialized_fem_data('solid', mfmat_init, solid)
+    md_init.add_initialized_fem_data('topo', mfmat_init, topo)
 
     if ins.free_surface | ins.topography:
         mls_cut = mls.cut_mesh()
@@ -988,10 +944,10 @@ for outfilei in outfiles:
 
     if ins.free_surface & ins.solve_air:
         md.add_nonlinear_term(mim_fluidbound, str(ins.max_eta*1e6) + "*((Xfem_plus(p)-Xfem_minus(p))+surface_tension*curvature).(Xfem_plus(Test_p)-Xfem_minus(Test_p))")
-        if ins.temperature & ins.t_enrich:
-            md.add_nonlinear_term(mim_fluidbound, str(ins.max_eta*1e6) + "*((Xfem_plus(t)-Xfem_minus(t))-(1150-tamb)/2).(Xfem_plus(Test_t)-Xfem_minus(Test_t))")
+        #if ins.temperature & ins.t_enrich:
+        #    md.add_nonlinear_term(mim_fluidbound, str(np.abs(ins.T0-ins.T_amb)*1e6) + "*((Xfem_plus(t)-Xfem_minus(t))-(" + str(ins.T0) + "-tamb)/2).(Xfem_plus(Test_t)-Xfem_minus(Test_t))")
 
-    # mometum balance
+    # momentum balance
     if ins.compressible:
         time_int_u = "rhof*(BDF0*u+BDF1*Previous_u+BDF2*Previous2_u)/dt.Test_u"
     else:
@@ -1358,11 +1314,11 @@ for outfilei in outfiles:
             # Dirichlet boundaries
             if (type(eval('ins.' + bound + '_t')) is float) or (type(eval('ins.' + bound + '_t')) is int):
                 data_t = eval('ins.' + bound + '_t') * ones_t
-                t_init[mft.basic_dof_on_region(i+1)] = eval('ins.' + bound + '_t') * ones_t[mft.basic_dof_on_region(i+1)]
+                t_init[mft_init.basic_dof_on_region(i+1)] = eval('ins.' + bound + '_t') * ones_t[mft_init.basic_dof_on_region(i+1)]
                 dirichlet = True
             if type(eval('ins.' + bound + '_t')) is str:
                 data_t = eval(eval('ins.' + bound + '_t').replace('X','x_t').replace('Y','y_t')) * ones_t
-                t_init[mft.basic_dof_on_region(i + 1)] = (eval(eval('ins.' + bound + '_t').replace('X','x_t').replace('Y','y_t')) * ones_t)[mft.basic_dof_on_region(i + 1)]
+                t_init[mft_init.basic_dof_on_region(i + 1)] = (eval(eval('ins.' + bound + '_t').replace('X','x_t').replace('Y','y_t')) * ones_t)[mft_init.basic_dof_on_region(i + 1)]
 
                 dirichlet = True
 
@@ -1429,10 +1385,10 @@ for outfilei in outfiles:
             elif type(ins.basal_flux) is str:
                 if 'conduction' in ins.basal_flux:
                     if 'planar' in ins.symmetry:
-                        md.add_initialized_fem_data('basal_flux', mft_init, [ins.kappa3 * (t_init - ins.basal_temp_i)])
+                        md.add_initialized_fem_data('basal_flux', mft, [ins.kappa3 * (t_init - ins.basal_temp_i)])
                         md.add_source_term_brick(mim_base, 't', 'basal_flux', -1)
                     if 'axial' in ins.symmetry:
-                        md.add_initialized_fem_data('basal_flux', mft_init, [x_t*ins.kappa3 * (t_init - ins.basal_temp_i)])
+                        md.add_initialized_fem_data('basal_flux', mft, [x_t*ins.kappa3 * (t_init - ins.basal_temp_i)])
                         md.add_source_term_brick(mim_base, 't', 'basal_flux', -1)
 
     #### Solve ####
@@ -1520,8 +1476,6 @@ for outfilei in outfiles:
             if ins.free_surface:
                 mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1_' + numstr + '.vtk',
                                    ls1.values(0))
-                #mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1post_' + numstr + '.vtk',
-                #                   ls1.values(0))
                 if ins.true_ls1:
                     mfls.export_to_vtk(
                         outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1true_' + numstr + '.vtk',
@@ -1583,8 +1537,8 @@ for outfilei in outfiles:
         hf.create_dataset('last2_d', data=d_init)
         hf.create_dataset('err_d', data=err_d, maxshape=(None,))
         if ins.temperature:
-            hf.create_dataset('last_t', data=t_init)
-            hf.create_dataset('last2_t', data=t_init)
+            hf.create_dataset('last_t', data=compute_interpolate_on(mft_init,t_init,mft0))
+            hf.create_dataset('last2_t', data=compute_interpolate_on(mft_init,t_init,mft0))
             hf.create_dataset('err_t', data=err_t, maxshape=(None,))
         if ins.free_surface:
             hf.create_dataset('last_ls1', data=ls1.values(0))
@@ -1655,9 +1609,11 @@ for outfilei in outfiles:
                 mfp_previous2.adapt()
                 mfmat_previous.adapt()
                 mfmat_previous2.adapt()
-                if ins.t_enrich:
-                    mfmu_previous.adapt()
-                    mfmu_previous2.adapt()
+                mfmu_previous.adapt()
+                mfmu_previous2.adapt()
+                if ins.temperature & ('heaviside' in ins.t_enrich):
+                    mft_previous.adapt()
+                    mft_previous2.adapt()
 
             md.set_variable('Previous2_u', u_init)
             md.set_variable('Previous_u', md.variable('u'))
@@ -1680,6 +1636,11 @@ for outfilei in outfiles:
                 mfmat_previous2.adapt()
 
             md.set_variable('Previous2_rho', rho_init)
+            md.set_variable('Previous_rho', md.variable('rho'))
+            md.set_variable('Previous2_kappa', kappa_init)
+            md.set_variable('Previous_kappa', md.variable('kappa'))
+            md.set_variable('Previous2_mu', mu_init)
+            md.set_variable('Previous_mu', md.variable('mu'))
             if ins.ndt0>1:
                 md.set_variable('dt', [ins.dt])
 
@@ -1704,7 +1665,11 @@ for outfilei in outfiles:
             md.set_variable('Previous_d', md.variable('d'))
 
             if ins.temperature:
+                if 'heaviside' in ins.t_enrich:
+                    mft_previous2.adapt()
                 md.set_variable('Previous2_t', md.variable('Previous_t'))
+                if 'heaviside' in ins.t_enrich:
+                    mft_previous.adapt()
                 md.set_variable('Previous_t', md.variable('t'))
 
             if ins.free_surface:
@@ -1713,14 +1678,14 @@ for outfilei in outfiles:
                 md.set_variable('Previous_fext',fext)
 
                 mfmat_previous2.adapt()
-                if ins.t_enrich:
-                    mfmu_previous2.adapt()
+                mfmu_previous2.adapt()
             md.set_variable('Previous2_rho', md.variable('Previous_rho'))
+            md.set_variable('Previous2_kappa', md.variable('Previous_kappa'))
+            md.set_variable('Previous2_mu', md.variable('Previous_mu'))
 
         if ins.free_surface:
             mfmat_previous.adapt()
-            if ins.t_enrich:
-                mfmu_previous.adapt()
+            mfmu_previous.adapt()
         md.set_variable('Previous_rho',md.variable('rho'))
         md.set_variable('Previous_beta', md.variable('beta'))
         if ins.temperature:
@@ -1769,12 +1734,12 @@ for outfilei in outfiles:
                 md.set_variable('kappa', kappa)
 
                 # update viscosity field
-                T_mu = compute_interpolate_on(mft,T,D_mu)
+                T_mu = compute_interpolate_on(mft,md.variable('t'),D_mu)
                 eta = eval(ins.eta_exp.replace('exp', 'np.exp').replace('vft','ins.vft').replace('etar','ins.etar').replace('T','T_mu'))
                 eta[eta > ins.max_eta] = ins.max_eta
                 eta[T_mu <= ins.vftb/(np.log10(ins.max_eta)-ins.vfta) - 273 + ins.vftc] = ins.max_eta
                 if ins.temperature & ins.solidification:
-                    T_ls2 = compute_interpolate_on(mft0,md.variable('t'),mft)
+                    T_ls2 = compute_interpolate_on(mft,md.variable('t'),mft0)
                     ls2.set_values((T_ls2 - Tg) / Tg)
                     ls2_mu = compute_interpolate_on(mft0, ls2.values(0), D_mu)
                     ls2_mat = compute_interpolate_on(mft0, ls2.values(0), D_mat)
@@ -1959,7 +1924,7 @@ for outfilei in outfiles:
                             surface_flux_budget += radii_t / ins.rho1 / ins.cp1 * ins.emissivity * ins.stefan_boltzmann * (1-ins.crust_cover) * (
                                 (ins.T0+273) ** 4 - (ins.T_amb+273) ** 4)
                         if 'forced convection' in ins.surface_flux:
-                            surface_flux_budget += ins.heat_transfer_coeff * (T - ins.T_amb)
+                            surface_flux_budget += ins.heat_transfer_coeff * (md.variable('t') - ins.T_amb)
                         if 'axial' in ins.symmetry:
                             surface_flux_budget = x_t*surface_flux_budget
                         md.set_variable('surface_flux', [surface_flux_budget * ones_t])
@@ -1968,9 +1933,9 @@ for outfilei in outfiles:
                     if type(ins.basal_flux) is str:
                         if 'conduction' in ins.basal_flux:
                             if 'planar' in ins.symmetry:
-                                md.set_variable('basal_flux', [ins.kappa1 * (T - ins.basal_temp_i) / radii_t * ones_t])
+                                md.set_variable('basal_flux', [ins.kappa1 * (md.variable('t') - ins.basal_temp_i) / radii_t * ones_t])
                             if 'axial' in ins.symmetry:
-                                md.set_variable('basal_flux', [x_t*ins.kappa1 * (T - ins.basal_temp_i) / radii_t * ones_t])
+                                md.set_variable('basal_flux', [x_t*ins.kappa1 * (md.variable('t') - ins.basal_temp_i) / radii_t * ones_t])
 
             md.enable_variable('u')
             md.enable_variable('p')
@@ -1991,6 +1956,7 @@ for outfilei in outfiles:
             if ins.temperature:
                 if j == 0:
                     Previous_t = T
+                T = ones_t * 0
                 T[eval(ind_t)] = md.variable('t')
 
             md.disable_variable('u')
@@ -2112,10 +2078,6 @@ for outfilei in outfiles:
                                                         pts.shape[1]
                         else:
                             err_ls1[int(ti / ins.dt)] = compute_L2_norm(mfls, ls1.values(0), mim)
-                            #print(pts[1,:])
-                            #print(eval('-'+ins.true_ls1.replace('X', 'pts[0,:]').replace('Y', '0')))
-                            # err_ls1[int(ti/ins.dt)] = compute_L2_dist(mfls, md.variable('Previous_psi'), mim_all, mfls,
-                            #                                          eval(ins.true_ls1))/compute_L2_norm(mfls,eval(ins.true_ls1),mim_all)
                         mfmat.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_rho_' + numstr + '.vtk', rho)
                     mfmu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_mu_' + numstr + '.vtk', mu)
                     if ins.temperature:
@@ -2124,11 +2086,11 @@ for outfilei in outfiles:
                         if ins.true_t:
                             mft.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ttrue_' + numstr + '.vtk',
                                               eval(ins.true_t))
-                            err_t[int(ti / ins.dt)] = compute_L2_dist(mft, T, mim, mft,
+                            err_t[int(ti / ins.dt)] = compute_L2_dist(mft, md.variable('t'), mim, mft,
                                                                       eval(ins.true_t)) / compute_L2_norm(mft, eval(
                                 ins.true_t), mim)
                         else:
-                            err_t[int(ti / ins.dt)] = compute_L2_norm(mft, T, mim)
+                            err_t[int(ti / ins.dt)] = compute_L2_norm(mft, md.variable('t'), mim)
 
                         if ins.solidification:
                             mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_d_' + numstr + '.vtk', D)
@@ -2161,8 +2123,8 @@ for outfilei in outfiles:
                 hf['last2_d'][:] = Previous_d
                 hf['err_d'][:] = err_d
                 if ins.temperature:
-                    hf['last_t'][:] = T
-                    hf['last2_t'][:] = Previous_t
+                    hf['last_t'][:] = compute_interpolate_on(mft,md.variable('t'),mft0)
+                    hf['last2_t'][:] = compute_interpolate_on(mft_previous,md.variable('Previous_t'),mft0)
                     hf['err_t'][:] = err_t
                 if ins.free_surface:
                     hf['last_ls1'][:] = ls1.values(0)
@@ -2195,7 +2157,8 @@ for outfilei in outfiles:
                 else:
                         Ls3_grid = np.ones_like(x_grid) + np.sqrt(dx ** 2 + dy ** 2)
 
-                eta_grid = sciinterp.griddata(D_mu.transpose(), eta,
+                eta_u = compute_interpolate_on(mfmu,eta,mfmu0)
+                eta_grid = sciinterp.griddata(D_mu0.transpose(), eta_u,
                                               np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
                                               method='nearest').reshape(x_grid.shape)
                 mean_eta_surf = np.mean(eta_grid[(np.abs(Psi_grid)<np.sqrt(dx**2 + dy**2))])
@@ -2242,16 +2205,6 @@ for outfilei in outfiles:
                                             Fy_ext_grid.flatten(),
                                             D_u[:,1::2].transpose(),
                                             method='nearest').flatten()
-                #dx_Psi = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), dx_Psi_grid.flatten(),
-                #                            D_ls.transpose(),
-                #                            method='nearest').flatten()
-                #dy_Psi = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(), dy_Psi_grid.flatten(),
-                #                            D_ls.transpose(),
-                #                            method='nearest').flatten()
-                #mag_grad_Psi = sciinterp.griddata(np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                #                                  mag_grad_Psi_grid.flatten(),
-                #                                  D_ls.transpose(),
-                #                                  method='nearest').flatten()
 
                 fext = 0 * ones_u
                 fext[::2] = Fx_ext
@@ -2261,47 +2214,6 @@ for outfilei in outfiles:
                 if (ti<=2*ins.dt/ins.ndt0) & (j == (ins.n_outer_iter-1)):
                     fext_init = fext.copy()
                     md.set_variable('Previous_fext',fext)
-
-                #if (((int(ti/ins.dt) % ins.noutput == 0) & (ti>=ins.dt)) or (np.abs(ti - ins.tf) < ins.dt)) & (j == (ins.n_outer_iter-1)):
-                    #numstr = str(ti * 10 ** ndecimal).split('.')[0].zfill(ndigits)
-                    # print('Average temperature %g' % np.mean(T))
-                    #if ins.vtk:
-                        #if ins.free_surface:
-                            #mfu.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Fext_' + numstr + '.vtk', fext)
-                            #mfcurve.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_psigrid_' + numstr + '.vtk',
-                            #                   sciinterp.griddata(
-                            #                       np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                            #                       Psi_grid.flatten(),
-                            #                       D_curve.transpose(),
-                            #                       method='nearest'))
-                            #mfcurve.export_to_vtk(
-                            #    outfile + '/' + ins.outfile.split('/')[-1] + '_dxpsigrid_' + numstr + '.vtk',
-                            #    sciinterp.griddata(
-                            #        np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                            #        dx_Psi_grid.flatten(),
-                            #        D_curve.transpose(),
-                            #        method='nearest'))
-                            #mfcurve.export_to_vtk(
-                            #    outfile + '/' + ins.outfile.split('/')[-1] + '_dypsigrid_' + numstr + '.vtk',
-                            #    sciinterp.griddata(
-                            #        np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                            #        dy_Psi_grid.flatten(),
-                            #        D_curve.transpose(),
-                            #        method='nearest'))
-                            #mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_psis_' + numstr + '.vtk', md.variable('psis'))
-                            #mfcurve.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_curvature_' + numstr + '.vtk',
-                            #                   sciinterp.griddata(
-                            #                       np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                            #                       curvature.flatten(),
-                            #                       D_curve.transpose(),
-                            #                       method='nearest'))
-                            #mfcurve.export_to_vtk(
-                            #    outfile + '/' + ins.outfile.split('/')[-1] + '_relax_' + numstr + '.vtk',
-                            #    sciinterp.griddata(
-                            #        np.array([x_grid.flatten(), y_grid.flatten()]).transpose(),
-                            #        relax_speed.flatten(),
-                            #        D_curve.transpose(),
-                            #        method='nearest'))
 
                 md.enable_variable('psi')
                 md.solve('max_res', ins.max_residual, 'max_iter', ins.max_iter, 'noisy')
@@ -2355,12 +2267,6 @@ for outfilei in outfiles:
                     area = alphashape.alphashape(pts.transpose(), 2 * np.sqrt(dx ** 2 + dy ** 2)).area
                     print((area - expected_area) / expected_area)
 
-                #if (((round(ti / ins.dt) % ins.noutput == 0) & (ti >= ins.dt)) or (np.abs(ti - ins.tf) < ins.dt)) & (j == (ins.n_outer_iter-1)):
-                    #numstr = str(round(ti * 10 ** ndecimal)).split('.')[0].zfill(ndigits)
-                    # print('Average temperature %g' % np.mean(T))
-                    #if ins.vtk:
-                        #mfls.export_to_vtk(outfile + '/' + ins.outfile.split('/')[-1] + '_Ls1post_' + numstr + '.vtk',
-                        #                   md.variable('psi'))
                 mls.adapt()
                 mlsxfem.adapt()
                 if ins.temperature & ins.solidification:
@@ -2370,8 +2276,12 @@ for outfilei in outfiles:
                 ones_p = np.ones(D_p.shape[1])
                 x_p = D_p[0, :]
                 y_p = D_p[1, :]
-                #if ins.temperature:
-                #    mft.adapt()
+                if ins.temperature & ('heaviside' in ins.t_enrich):
+                    mft.adapt()
+                    D_t = mft.basic_dof_nodes()
+                    ones_t = np.ones(D_t.shape[1])
+                    x_t = D_t[0, :]
+                    y_t = D_t[1, :]
                 mfmat.adapt()
                 D_mat = mfmat.basic_dof_nodes()
                 ones_mat = np.ones(D_mat.shape[1])
@@ -2397,7 +2307,7 @@ for outfilei in outfiles:
                 #mfp_cut.set_partial(eval(ind_p))
                 #mfu_cut.set_partial(eval(ind_u))
                 #    mft_cut.set_partial(eval(ind_t))
-                if ins.t_enrich & ins.free_surface:
+                if ins.free_surface & ('cutoff' in ins.t_enrich):
                     mft_cutoff_previous2.set_enriched_dofs(enriched_dofst_previous)
                     mft_cutoff_previous.set_enriched_dofs(enriched_dofst)
                     enriched_dofst_previous = enriched_dofst
@@ -2413,34 +2323,6 @@ for outfilei in outfiles:
                         enriched_dofst= enriched_dofs1
                     enriched_dofst = enriched_dofst[enriched_dofst > 1]
                     mft_cutoff.set_enriched_dofs(enriched_dofst)
-
-                mfp_cutoff_previous2.set_enriched_dofs(enriched_dofsp_previous)
-                mfp_cutoff_previous.set_enriched_dofs(enriched_dofsp)
-                enriched_dofsp_previous = enriched_dofsp
-                enriched_dofs1 = (np.nonzero(
-                    np.abs(compute_interpolate_on(mfls, ls1.values(0), DOFpts_p)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-                if ins.topography:
-                    enriched_dofs3 = (np.nonzero(
-                        np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_p)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1)
-                    enriched_dofsp = np.append(enriched_dofs1, enriched_dofs3)
-                else:
-                    enriched_dofsp = enriched_dofs1
-                enriched_dofsp = enriched_dofsp[enriched_dofsp > 1]
-                mfp_cutoff.set_enriched_dofs(enriched_dofsp)
-
-                mfmat_cutoff_previous2.set_enriched_dofs(enriched_dofsmat_previous)
-                mfmat_cutoff_previous.set_enriched_dofs(enriched_dofsmat)
-                enriched_dofsmat_previous = enriched_dofsmat
-                enriched_dofs1 = np.nonzero(
-                    np.abs(compute_interpolate_on(mfls, ls1.values(0), DOFpts_mat)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1
-                if ins.topography:
-                    enriched_dofs3 = np.nonzero(
-                        np.abs(compute_interpolate_on(mfls, ls3.values(0), DOFpts_mat)) < (np.sqrt(dx ** 2 + dy ** 2)))[0] + 1
-                    enriched_dofsmat = np.append(enriched_dofs1, enriched_dofs3)
-                else:
-                    enriched_dofsmat = enriched_dofs1
-                enriched_dofsmat = enriched_dofsmat[enriched_dofsmat > 1]
-                mfmat_cutoff.set_enriched_dofs(enriched_dofsmat)
 
                 if ins.temperature & ins.solidification:
                     Previous_Ls_u = compute_interpolate_on(mfls, md.variable('Previous_psi'), mfu.basic_dof_nodes())
