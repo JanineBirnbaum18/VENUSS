@@ -23,4 +23,4 @@ tests: folder of example json input files.
 VENUSS_Manual.pdf: user manual.
 
 ## Publication information
-[![DOI](https://zenodo.org/badge/19220847.svg)](https://zenodo.org/badge/latestdoi/19220847)
+[![DOI](https://zenodo.org/badge/8335428.svg)](https://zenodo.org/badge/latestdoi/8335428)
