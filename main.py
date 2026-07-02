@@ -13,6 +13,7 @@ import alphashape
 import getfem as gf
 from getfem import *
 from curvature import *
+from init_topography import *
 from math import erf
 from shapely.plotting import plot_polygon
 
@@ -56,7 +57,8 @@ for outfilei in outfiles:
 
     for ls in ['ls1p', 'ls1s', 'ls2p', 'ls2s', 'ls3p', 'ls3s']:
         if type(ins.__dict__[ls]) is str:
-            ins.__dict__[ls] = ins.__dict__[ls].replace('X','x').replace('Y','y')
+            if not('.txt' in ins.__dict__[ls]):
+                ins.__dict__[ls] = ins.__dict__[ls].replace('X','x').replace('Y','y')
 
     if ins.compressible:
         ins.steady = False
@@ -193,15 +195,29 @@ for outfilei in outfiles:
     if ins.topography:
         if not ins.free_surface:
             mls = gf.MeshLevelSet(mesh)
-        ls3 = gf.LevelSet(mesh, ins.ls_k, ins.ls3p, ins.ls3s)
-        mls.add(ls3)
+
+        if '.txt' in ins.ls3p:
+            ls3 = gf.LevelSet(mesh, ins.ls_k, 'y-0.0', ins.ls3s)
+            mls.add(ls3)
+
+            mfheight = gf.MeshFem(mesh, 1)
+            mfheight.set_classical_fem(ins.ls_k)
+            D_height = mfheight.basic_dof_nodes()
+            x_height = D_height[0, :]
+            y_height = D_height[1, :]
+
+            ls3.set_values(initialize_topography(ins.ls3p,x_height,y_height))
+        else:
+            ls3 = gf.LevelSet(mesh, ins.ls_k, ins.ls3p, ins.ls3s)
+            mls.add(ls3)
+        mls.adapt()
 
     if ins.restart:
         if ins.free_surface:
             ls1.set_values(last_Ls1)
             ls1_previous.set_values(last2_Ls1)
-            if ins.topography:
-                ls1xfem.set_values(last_Ls1,'-(' + ins.ls3p + ')')
+            #if ins.topography:
+            #    ls1xfem.set_values(last_Ls1,'-(' + ins.ls3p + ')')
 
     if ins.free_surface | ins.topography:
         mls.adapt()
@@ -2262,7 +2278,7 @@ for outfilei in outfiles:
                     if itr > 0:
                         if ins.topography:
                             ls1.set_values(ls1.values(0) + (area - expected_area) / pts.shape[1] / np.sqrt(dx ** 2 + dy ** 2)*(ls3.values(0)>np.sqrt(dx**2 + dy**2)/2)/2)
-                            ls1xfem.set_values(ls1.values(0),'-(' + ins.ls3p + ')')
+                            #ls1xfem.set_values(ls1.values(0),'-(' + ins.ls3p + ')')
                         else:
                             ls1.set_values(ls1.values(0) + (area - expected_area) / pts.shape[1] / np.sqrt(dx ** 2 + dy ** 2) / 2)
                     itr += 1
